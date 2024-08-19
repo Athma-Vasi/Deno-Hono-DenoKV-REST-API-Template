@@ -12,26 +12,28 @@ async function createUserHandler(c: Context) {
         return c.text("Invalid user data");
     }
     const result = await createUserService(user);
-    return c.json(result);
+
+    if (result.ok) {
+        return c.json(result);
+    } else {
+        console.error(result.toString());
+    }
 }
 
 async function getUserByIdHandler(c: Context) {
-    try {
-        console.log("inside getUserHandler");
-        const userId = c.req.query("userId") ?? "";
+    console.log("inside getUserHandler");
+    const userId = c.req.query("userId") ?? "";
 
-        const user = await getUserService(userId);
+    const result = await getUserService(userId);
 
-        console.group("getUserHandler");
-        console.log(user);
-        console.groupEnd();
+    console.group("getUserHandler");
+    console.log(result);
+    console.groupEnd();
 
-        if (user.value === null) {
-            return c.text("User not found");
-        }
-        return c.json(user);
-    } catch (error) {
-        console.error(error);
+    if (result.ok) {
+        return c.json(result);
+    } else {
+        console.error(result.toString());
     }
 }
 
