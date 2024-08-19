@@ -1,22 +1,22 @@
 import { UserSchema } from "./user-model.ts";
 
 async function createUserService(user: UserSchema) {
-    const kv = await Deno.openKv("user-db");
-    const result = await kv.set(["users", user.id], user);
-    kv.close();
+    const denoDB = await Deno.openKv("user-db");
+    const result = await denoDB.set(["users", user.id], user);
+    denoDB.close();
     return result;
 }
 
 async function getUserService(id: string) {
-    const kv = await Deno.openKv("user-db");
-    const result = await kv.get(["users", id]);
-    kv.close();
+    const denoDB = await Deno.openKv("user-db");
+    const result = await denoDB.get(["users", id]);
+    denoDB.close();
     return result;
 }
 
 async function getUsersService() {
-    const kv = await Deno.openKv("user-db");
-    const iter = kv.list({ prefix: ["users"] });
+    const denoDB = await Deno.openKv("user-db");
+    const iter = denoDB.list({ prefix: ["users"] });
     const result = [];
     for await (const { key, value } of iter) {
         result.push({ key: key[1], value: value });
@@ -25,13 +25,13 @@ async function getUsersService() {
 }
 
 async function updateUserService(user: UserSchema) {
-    const kv = await Deno.openKv("user-db");
-    return await kv.set(["users", user.id], user);
+    const denoDB = await Deno.openKv("user-db");
+    return await denoDB.set(["users", user.id], user);
 }
 
 async function deleteUserService(id: string) {
-    const kv = await Deno.openKv("user-db");
-    return await kv.delete(["users", id]);
+    const denoDB = await Deno.openKv("user-db");
+    return await denoDB.delete(["users", id]);
 }
 
 export {
