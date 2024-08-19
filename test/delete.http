@@ -1,0 +1,6 @@
+DELETE http://0.0.0.0:8000/kv
+content-type: application/json
+
+{
+    "key": "test"
+}
