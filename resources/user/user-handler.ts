@@ -9,7 +9,7 @@ async function createUserHandler(c: Context) {
     console.groupEnd();
 
     if (!user) {
-        return c.text("Invalid user data");
+        console.error("User not found");
     }
     const result = await createUserService(user);
 

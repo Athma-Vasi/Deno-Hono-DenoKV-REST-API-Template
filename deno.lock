@@ -3,7 +3,7 @@
   "packages": {
     "specifiers": {
       "jsr:@hono/hono@^4.5.6": "jsr:@hono/hono@4.5.6",
-      "npm:ts-results@^3.3.0": "npm:ts-results@3.3.0"
+      "npm:ts-results": "npm:ts-results@3.3.0"
     },
     "jsr": {
       "@hono/hono@4.5.6": {
@@ -21,11 +21,6 @@
   "workspace": {
     "dependencies": [
       "jsr:@hono/hono@^4.5.6"
-    ],
-    "packageJson": {
-      "dependencies": [
-        "npm:ts-results@^3.3.0"
-      ]
-    }
+    ]
   }
 }

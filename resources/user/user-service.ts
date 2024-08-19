@@ -1,4 +1,4 @@
-import { Err, ErrImpl, Ok, OkImpl, Result } from "ts-results";
+import { Err, ErrImpl, Ok, OkImpl, Result } from "../../ts-results/result.ts";
 import { UserSchema } from "./user-model.ts";
 
 async function createUserService(
