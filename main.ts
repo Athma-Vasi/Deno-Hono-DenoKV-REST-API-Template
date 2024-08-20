@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { compress } from "hono/compress";
 import { bearerAuth } from "hono/bearer-auth";
 import { jwt } from "hono/jwt";
+
 import { authRouter } from "./resources/auth/auth-routes.ts";
 import { userRouter } from "./resources/user/user-routes.ts";
 

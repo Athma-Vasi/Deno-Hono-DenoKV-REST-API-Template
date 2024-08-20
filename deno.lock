@@ -3,11 +3,35 @@
   "packages": {
     "specifiers": {
       "jsr:@hono/hono@^4.5.6": "jsr:@hono/hono@4.5.6",
+      "jsr:@std/bytes@^1.0.2-rc.3": "jsr:@std/bytes@1.0.2",
+      "jsr:@std/crypto@^1.0.2-rc.1": "jsr:@std/crypto@1.0.2",
+      "jsr:@std/ulid": "jsr:@std/ulid@1.0.0",
+      "jsr:@std/uuid": "jsr:@std/uuid@1.0.1",
+      "jsr:@ts-rex/bcrypt@^1.0.3": "jsr:@ts-rex/bcrypt@1.0.3",
       "npm:ts-results": "npm:ts-results@3.3.0"
     },
     "jsr": {
       "@hono/hono@4.5.6": {
         "integrity": "6b156968a5f34e97aa96a530ae67740190c1f8a045855342ce289cc5e9ce0a54"
+      },
+      "@std/bytes@1.0.2": {
+        "integrity": "fbdee322bbd8c599a6af186a1603b3355e59a5fb1baa139f8f4c3c9a1b3e3d57"
+      },
+      "@std/crypto@1.0.2": {
+        "integrity": "bb515dbcd4d67aacf0ffece643a434811ea06e5b544f03c33ba58552fbdb87c7"
+      },
+      "@std/ulid@1.0.0": {
+        "integrity": "d41c3d27a907714413649fee864b7cde8d42ee68437d22b79d5de4f81d808780"
+      },
+      "@std/uuid@1.0.1": {
+        "integrity": "26f834b1e1f95b581f5f654f6b2c34c2031832fb4f598dbb1332520aa63a6740",
+        "dependencies": [
+          "jsr:@std/bytes@^1.0.2-rc.3",
+          "jsr:@std/crypto@^1.0.2-rc.1"
+        ]
+      },
+      "@ts-rex/bcrypt@1.0.3": {
+        "integrity": "1a172769df1a357032e78cc13205dc34cc13f2307a2b81458bf988904ec8db02"
       }
     },
     "npm": {
@@ -20,7 +44,8 @@
   "remote": {},
   "workspace": {
     "dependencies": [
-      "jsr:@hono/hono@^4.5.6"
+      "jsr:@hono/hono@^4.5.6",
+      "jsr:@ts-rex/bcrypt@^1.0.3"
     ]
   }
 }

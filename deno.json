@@ -1,5 +1,6 @@
 {
   "imports": {
+    "@ts-rex/bcrypt": "jsr:@ts-rex/bcrypt@^1.0.3",
     "hono": "jsr:@hono/hono@^4.5.6"
   },
   "tasks": {
