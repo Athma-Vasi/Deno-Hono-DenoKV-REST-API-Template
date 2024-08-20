@@ -1,14 +1,8 @@
-type HttpResult = {
+type HttpResult<T extends unknown = unknown> = {
+    kind: "error" | "success";
     status: number;
     message: string;
+    data?: T;
 };
 
-type JWTPayload = {
-    userId: string;
-    email: string;
-    exp: number;
-    nbf: number;
-    iat: number;
-};
-
-export type { HttpResult, JWTPayload };
+export type { HttpResult };

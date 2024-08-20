@@ -5,7 +5,7 @@ async function createUserService(
     user: UserSchema,
 ): Promise<ErrImpl<string> | OkImpl<UserSchema>> {
     try {
-        const denoDB = await Deno.openKv("user-db");
+        const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err("Error opening database");
         }
@@ -23,7 +23,7 @@ async function getUserService(
     id: string,
 ): Promise<ErrImpl<string> | OkImpl<UserSchema>> {
     try {
-        const denoDB = await Deno.openKv("user-db");
+        const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err("Error opening database");
         }
@@ -43,7 +43,7 @@ async function getUserService(
 
 async function getUsersService() {
     try {
-        const denoDB = await Deno.openKv("user-db");
+        const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err("Error opening database");
         }
@@ -62,13 +62,13 @@ async function getUsersService() {
 }
 
 async function updateUserService(user: UserSchema) {
-    const denoDB = await Deno.openKv("user-db");
+    const denoDB = await Deno.openKv("user_db");
     return await denoDB.set(["users", user.id], user);
 }
 
 async function deleteUserService(id: string) {
     try {
-        const denoDB = await Deno.openKv("user-db");
+        const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err("Error opening database");
         }
