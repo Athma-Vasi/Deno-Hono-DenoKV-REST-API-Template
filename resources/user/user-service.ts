@@ -9,7 +9,6 @@ async function createUserService(
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error opening database",
                 status: 500,
@@ -27,14 +26,12 @@ async function createUserService(
                 status: 201,
             })
             : new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error creating user",
                 status: 500,
             });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error creating user: ${error ?? "Unknown error"}`,
             status: 500,
@@ -44,43 +41,39 @@ async function createUserService(
 
 async function getUserService(
     id: string,
-): Promise<ErrImpl<string> | OkImpl<UserSchema>> {
+): ServicesOutput<UserSchema> {
     try {
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
-            return new Err("Error opening database");
+            return new Err<HttpResult>({
+                kind: "error",
+                message: "Error opening database",
+                status: 500,
+            });
         }
 
-        const result = await denoDB.get(["users", id]);
+        const result = await denoDB.get<UserSchema>(["users", id]);
         denoDB.close();
+        const user = result.value;
 
-        return result.value !== null
-            ? new Ok(result.value as UserSchema)
-            : new Err("User not found");
+        return user === null
+            ? new Err<HttpResult>({
+                kind: "error",
+                message: "User not found",
+                status: 404,
+            })
+            : new Ok<HttpResult<UserSchema>>({
+                data: [user],
+                kind: "success",
+                message: "User found",
+                status: 200,
+            });
     } catch (error) {
-        return new Err(
-            `Error getting user: ${error ?? "Unknown error"}`,
-        );
-    }
-}
-
-async function getUsersService() {
-    try {
-        const denoDB = await Deno.openKv("user_db");
-        if (denoDB === null || denoDB === undefined) {
-            return new Err("Error opening database");
-        }
-
-        const iter = denoDB.list({ prefix: ["users"] });
-        const result = [];
-        for await (const { key, value } of iter) {
-            result.push({ key: key[1], value: value });
-        }
-        return result;
-    } catch (error) {
-        return new Err(
-            `Error getting users: ${error ?? "Unknown error"}`,
-        );
+        return new Err<HttpResult>({
+            kind: "error",
+            message: `Error getting user: ${error ?? "Unknown error"}`,
+            status: 500,
+        });
     }
 }
 

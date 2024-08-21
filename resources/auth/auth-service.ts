@@ -28,7 +28,6 @@ async function isTokenInDenyListService(
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error opening auth database",
                 status: 500,
@@ -44,7 +43,6 @@ async function isTokenInDenyListService(
         const authSession = result.value;
         if (authSession === null) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Session not found",
                 status: 404,
@@ -63,7 +61,6 @@ async function isTokenInDenyListService(
         );
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error checking deny list: ${error ?? "Unknown error"}`,
             status: 500,
@@ -78,7 +75,6 @@ async function createNewAuthSessionService(
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error opening auth database",
                 status: 500,
@@ -100,14 +96,12 @@ async function createNewAuthSessionService(
                 status: 200,
             })
             : new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error creating auth session",
                 status: 500,
             });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error creating session: ${error ?? "Unknown error"}`,
             status: 500,
@@ -122,7 +116,6 @@ async function deleteAuthSessionService(
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error opening auth database",
                 status: 500,
@@ -140,7 +133,6 @@ async function deleteAuthSessionService(
         });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error deleting session: ${error ?? "Unknown error"}`,
             status: 500,
@@ -156,7 +148,6 @@ async function upsertAuthSessionTokensService(
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error opening auth database",
                 status: 500,
@@ -170,7 +161,6 @@ async function upsertAuthSessionTokensService(
         const authSession = result.value;
         if (authSession === null) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Session not found",
                 status: 404,
@@ -194,14 +184,12 @@ async function upsertAuthSessionTokensService(
                 status: 200,
             })
             : new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error upserting auth session",
                 status: 500,
             });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error upserting session: ${error ?? "Unknown error"}`,
             status: 500,
@@ -219,7 +207,6 @@ async function loginService(
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error opening database",
                 status: 500,
@@ -232,7 +219,6 @@ async function loginService(
 
         if (user === null) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "User not found",
                 status: 404,
@@ -241,7 +227,6 @@ async function loginService(
 
         if (!verify(password, user.password)) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Invalid password",
                 status: 400,
@@ -261,7 +246,6 @@ async function loginService(
         );
         if (authSessionResult.err) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error creating auth session",
                 status: 401,
@@ -280,7 +264,6 @@ async function loginService(
         const REFRESH_TOKEN_SEED = Deno.env.get("REFRESH_TOKEN_SEED");
         if (REFRESH_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Refresh token seed not found",
                 status: 500,
@@ -294,7 +277,6 @@ async function loginService(
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Access token seed not found",
                 status: 500,
@@ -322,7 +304,6 @@ async function loginService(
         });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error logging in: ${error ?? "Unknown error"}`,
             status: 500,
@@ -337,7 +318,6 @@ async function registerService(
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error opening database",
                 status: 500,
@@ -349,7 +329,6 @@ async function registerService(
 
         if (existingUser !== null) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "User already exists",
                 status: 400,
@@ -362,14 +341,12 @@ async function registerService(
         return createdUser.ok
             ? await loginService(user.email, user.password)
             : new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error creating user",
                 status: 500,
             });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error registering user: ${error ?? "Unknown error"}`,
             status: 500,
@@ -389,7 +366,6 @@ async function tokensRefreshService(
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Access token seed not found",
                 status: 500,
@@ -410,7 +386,6 @@ async function tokensRefreshService(
         const REFRESH_TOKEN_SEED = Deno.env.get("REFRESH_TOKEN_SEED");
         if (REFRESH_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Refresh token seed not found",
                 status: 500,
@@ -434,7 +409,6 @@ async function tokensRefreshService(
         );
         if (denyListResult.err) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Error checking deny list",
                 status: 500,
@@ -443,7 +417,6 @@ async function tokensRefreshService(
         // if token in denylist
         if (denyListResult.safeUnwrap()) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Token in deny list",
                 status: 401,
@@ -485,7 +458,6 @@ async function tokensRefreshService(
         });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error refreshing tokens: ${error ?? "Unknown error"}`,
             status: 500,
@@ -510,7 +482,6 @@ async function logoutService(
         });
     } catch (error) {
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error logging out: ${error ?? "Unknown error"}`,
             status: 500,
@@ -533,7 +504,6 @@ async function verifyPayload(
     } catch (error) {
         if (error instanceof JwtAlgorithmNotImplemented) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "JWT algorithm not implemented",
                 status: 500,
@@ -542,7 +512,6 @@ async function verifyPayload(
 
         if (error instanceof JwtTokenInvalid) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Invalid token",
                 status: 400,
@@ -551,7 +520,6 @@ async function verifyPayload(
 
         if (error instanceof JwtTokenNotBefore) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Token used before valid",
                 status: 400,
@@ -560,7 +528,6 @@ async function verifyPayload(
 
         if (error instanceof JwtTokenExpired) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Token expired",
                 status: 400,
@@ -569,7 +536,6 @@ async function verifyPayload(
 
         if (error instanceof JwtTokenIssuedAt) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Token issued in the future",
                 status: 400,
@@ -578,7 +544,6 @@ async function verifyPayload(
 
         if (error instanceof JwtHeaderInvalid) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Invalid header",
                 status: 400,
@@ -587,7 +552,6 @@ async function verifyPayload(
 
         if (error instanceof JwtTokenSignatureMismatched) {
             return new Err<HttpResult>({
-                data: [],
                 kind: "error",
                 message: "Token signature mismatched",
                 status: 400,
@@ -595,7 +559,6 @@ async function verifyPayload(
         }
 
         return new Err<HttpResult>({
-            data: [],
             kind: "error",
             message: `Error verifying token: ${error?.name ?? "Unknown error"}`,
             status: 500,
