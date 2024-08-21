@@ -17,20 +17,25 @@ import {
 import { HttpResult } from "../../types.ts";
 import { AuthSessionSchema } from "./auth-types.ts";
 
+type AuthSessionServicesOutput<Data extends unknown = unknown> = Promise<
+    ErrImpl<HttpResult> | OkImpl<HttpResult<Data>>
+>;
+
 /**
  * Result: Ok(true) == token IN deny list
  */
 async function isTokenInDenyListService(
     refreshToken: string,
     sessionId: string,
-): Promise<ErrImpl<HttpResult> | OkImpl<boolean>> {
+): AuthSessionServicesOutput<boolean> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error opening auth database",
+                status: 500,
             });
         }
 
@@ -43,34 +48,44 @@ async function isTokenInDenyListService(
         const authSession = result.value;
         if (authSession === null) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 404,
                 message: "Session not found",
+                status: 404,
             });
         }
 
-        return new Ok(
-            authSession.refresh_tokens_deny_list.includes(refreshToken),
+        return new Ok<HttpResult<boolean>>(
+            {
+                data: [authSession.refresh_tokens_deny_list.includes(
+                    refreshToken,
+                )],
+                kind: "success",
+                message: "",
+                status: 200,
+            },
         );
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error checking deny list: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
 
 async function createNewAuthSessionService(
     authSessionSchema: AuthSessionSchema,
-): Promise<ErrImpl<HttpResult> | OkImpl<AuthSessionSchema>> {
+): AuthSessionServicesOutput<AuthSessionSchema> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error opening auth database",
+                status: 500,
             });
         }
 
@@ -82,47 +97,57 @@ async function createNewAuthSessionService(
         denoDB.close();
 
         return result.ok
-            ? new Ok<AuthSessionSchema>(authSessionSchema)
+            ? new Ok<HttpResult<AuthSessionSchema>>({
+                data: [authSessionSchema],
+                kind: "success",
+                message: "Session created",
+                status: 200,
+            })
             : new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error creating auth session",
+                status: 500,
             });
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error creating session: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
 
 async function deleteAuthSessionService(
     session_id: string,
-): Promise<ErrImpl<HttpResult> | OkImpl<HttpResult>> {
+): AuthSessionServicesOutput<boolean> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error opening auth database",
+                status: 500,
             });
         }
 
         await denoDB.delete(["auth-sessions", session_id]);
         denoDB.close();
 
-        return new Ok<HttpResult>({
+        return new Ok<HttpResult<boolean>>({
+            data: [true],
             kind: "success",
-            status: 200,
             message: "Session deleted",
+            status: 200,
         });
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error deleting session: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
@@ -130,14 +155,15 @@ async function deleteAuthSessionService(
 async function upsertAuthSessionTokensService(
     refreshToken: string,
     sessionId: string,
-): Promise<ErrImpl<HttpResult> | OkImpl<AuthSessionSchema>> {
+): AuthSessionServicesOutput<AuthSessionSchema> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error opening auth database",
+                status: 500,
             });
         }
 
@@ -148,9 +174,10 @@ async function upsertAuthSessionTokensService(
         const authSession = result.value;
         if (authSession === null) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 404,
                 message: "Session not found",
+                status: 404,
             });
         }
 
@@ -164,36 +191,42 @@ async function upsertAuthSessionTokensService(
         denoDB.close();
 
         return upsertResult.ok
-            ? new Ok<AuthSessionSchema>(authSession)
+            ? new Ok<HttpResult<AuthSessionSchema>>({
+                data: [authSession],
+                kind: "success",
+                message: "Session updated",
+                status: 200,
+            })
             : new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error upserting auth session",
+                status: 500,
             });
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error upserting session: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
 
-type LoginServiceOutput = Promise<
-    | ErrImpl<HttpResult>
-    | OkImpl<{ accessToken: string; refreshToken: string }>
->;
+type TokensObject = { accessToken: string; refreshToken: string };
+
 async function loginService(
     username: string,
     password: string,
-): LoginServiceOutput {
+): AuthSessionServicesOutput<TokensObject> {
     try {
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error opening database",
+                status: 500,
             });
         }
 
@@ -203,17 +236,19 @@ async function loginService(
 
         if (user === null) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 404,
                 message: "User not found",
+                status: 404,
             });
         }
 
         if (!verify(password, user.password)) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "Invalid password",
+                status: 400,
             });
         }
 
@@ -230,9 +265,10 @@ async function loginService(
         );
         if (authSessionResult.err) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 401,
                 message: "Error creating auth session",
+                status: 401,
             });
         }
 
@@ -248,9 +284,10 @@ async function loginService(
         const REFRESH_TOKEN_SEED = Deno.env.get("REFRESH_TOKEN_SEED");
         if (REFRESH_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Refresh token seed not found",
+                status: 500,
             });
         }
         const refreshToken = await sign(
@@ -261,9 +298,10 @@ async function loginService(
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Access token seed not found",
+                status: 500,
             });
         }
 
@@ -280,24 +318,33 @@ async function loginService(
             ACCESS_TOKEN_SEED,
         );
 
-        return new Ok({ accessToken, refreshToken });
+        return new Ok<HttpResult<TokensObject>>({
+            data: [{ accessToken, refreshToken }],
+            kind: "success",
+            message: "Logged in",
+            status: 200,
+        });
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error logging in: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
 
-async function registerService(user: UserSchema): LoginServiceOutput {
+async function registerService(
+    user: UserSchema,
+): AuthSessionServicesOutput<TokensObject> {
     try {
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error opening database",
+                status: 500,
             });
         }
 
@@ -306,9 +353,10 @@ async function registerService(user: UserSchema): LoginServiceOutput {
 
         if (existingUser !== null) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "User already exists",
+                status: 400,
             });
         }
         denoDB.close();
@@ -318,15 +366,17 @@ async function registerService(user: UserSchema): LoginServiceOutput {
         return createdUser.ok
             ? await loginService(user.email, user.password)
             : new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error creating user",
+                status: 500,
             });
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error registering user: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
@@ -338,17 +388,15 @@ async function tokensRefreshService(
         sessionId: string;
         userId: string;
     },
-): Promise<
-    | ErrImpl<HttpResult>
-    | OkImpl<{ newAccessToken: string; newRefreshToken: string }>
-> {
+): AuthSessionServicesOutput<TokensObject> {
     try {
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Access token seed not found",
+                status: 500,
             });
         }
 
@@ -366,9 +414,10 @@ async function tokensRefreshService(
         const REFRESH_TOKEN_SEED = Deno.env.get("REFRESH_TOKEN_SEED");
         if (REFRESH_TOKEN_SEED === undefined) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Refresh token seed not found",
+                status: 500,
             });
         }
 
@@ -389,17 +438,19 @@ async function tokensRefreshService(
         );
         if (denyListResult.err) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "Error checking deny list",
+                status: 500,
             });
         }
         // if token in denylist
         if (denyListResult.safeUnwrap()) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 401,
                 message: "Token in deny list",
+                status: 401,
             });
         }
 
@@ -427,35 +478,46 @@ async function tokensRefreshService(
             REFRESH_TOKEN_SEED,
         );
 
-        return new Ok({ newAccessToken, newRefreshToken });
+        return new Ok<HttpResult<TokensObject>>({
+            data: [{
+                accessToken: newAccessToken,
+                refreshToken: newRefreshToken,
+            }],
+            kind: "success",
+            message: "Tokens refreshed",
+            status: 200,
+        });
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error refreshing tokens: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
 
 async function logoutService(
     sessionId: string,
-): Promise<ErrImpl<HttpResult> | OkImpl<HttpResult>> {
+): AuthSessionServicesOutput<boolean> {
     try {
         const result = await deleteAuthSessionService(sessionId);
         if (result.err) {
             return result;
         }
 
-        return new Ok<HttpResult>({
+        return new Ok<HttpResult<boolean>>({
+            data: [true],
             kind: "success",
-            status: 200,
             message: "Logged out",
+            status: 200,
         });
     } catch (error) {
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error logging out: ${error ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
@@ -463,71 +525,84 @@ async function logoutService(
 async function verifyPayload(
     seed: string,
     token: string,
-): Promise<ErrImpl<HttpResult> | OkImpl<boolean>> {
+): AuthSessionServicesOutput<boolean> {
     try {
         await verifyJWT(token, seed);
-        return new Ok(true);
+        return new Ok<HttpResult<boolean>>({
+            data: [true],
+            kind: "success",
+            message: "Token verified",
+            status: 200,
+        });
     } catch (error) {
         if (error instanceof JwtAlgorithmNotImplemented) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 500,
                 message: "JWT algorithm not implemented",
+                status: 500,
             });
         }
 
         if (error instanceof JwtTokenInvalid) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "Invalid token",
+                status: 400,
             });
         }
 
         if (error instanceof JwtTokenNotBefore) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "Token used before valid",
+                status: 400,
             });
         }
 
         if (error instanceof JwtTokenExpired) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "Token expired",
+                status: 400,
             });
         }
 
         if (error instanceof JwtTokenIssuedAt) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "Token issued in the future",
+                status: 400,
             });
         }
 
         if (error instanceof JwtHeaderInvalid) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "Invalid header",
+                status: 400,
             });
         }
 
         if (error instanceof JwtTokenSignatureMismatched) {
             return new Err<HttpResult>({
+                data: [],
                 kind: "error",
-                status: 400,
                 message: "Token signature mismatched",
+                status: 400,
             });
         }
 
         return new Err<HttpResult>({
+            data: [],
             kind: "error",
-            status: 500,
             message: `Error verifying token: ${error?.name ?? "Unknown error"}`,
+            status: 500,
         });
     }
 }
