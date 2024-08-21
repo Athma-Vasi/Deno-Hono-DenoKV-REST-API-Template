@@ -1,21 +1,44 @@
 import { Err, ErrImpl, Ok, OkImpl, Result } from "../../ts-results/result.ts";
+import { HttpResult, ServicesOutput } from "../../types.ts";
 import { UserSchema } from "./user-model.ts";
 
 async function createUserService(
     user: UserSchema,
-): Promise<ErrImpl<string> | OkImpl<UserSchema>> {
+): ServicesOutput<UserSchema> {
     try {
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
-            return new Err("Error opening database");
+            return new Err<HttpResult>({
+                data: [],
+                kind: "error",
+                message: "Error opening database",
+                status: 500,
+            });
         }
 
         const result = await denoDB.set(["users", user.id], user);
         denoDB.close();
 
-        return result.ok ? new Ok(user) : new Err("Error creating user");
+        return result.ok
+            ? new Ok<HttpResult<UserSchema>>({
+                data: [user],
+                kind: "success",
+                message: "User created",
+                status: 201,
+            })
+            : new Err<HttpResult>({
+                data: [],
+                kind: "error",
+                message: "Error creating user",
+                status: 500,
+            });
     } catch (error) {
-        return new Err(`Error creating user: ${error ?? "Unknown error"}`);
+        return new Err<HttpResult>({
+            data: [],
+            kind: "error",
+            message: `Error creating user: ${error ?? "Unknown error"}`,
+            status: 500,
+        });
     }
 }
 
