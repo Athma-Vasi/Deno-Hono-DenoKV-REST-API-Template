@@ -1,8 +1,8 @@
-import { Err, ErrImpl, Ok, OkImpl } from "../../ts-results/result.ts";
+import { Err, Ok } from "../../ts-results/result.ts";
 import { UserSchema } from "../user/user-model.ts";
-import { hash, verify } from "@ts-rex/bcrypt";
+import { verify } from "@ts-rex/bcrypt";
 import { createUserService } from "../user/user-service.ts";
-import { decode, sign, verify as verifyJWT } from "hono/jwt";
+import { sign, verify as verifyJWT } from "hono/jwt";
 import { ulid } from "jsr:@std/ulid";
 import {
     JwtAlgorithmNotImplemented,
