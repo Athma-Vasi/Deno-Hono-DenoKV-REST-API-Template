@@ -5,8 +5,8 @@ import { compress } from "hono/compress";
 import { bearerAuth } from "hono/bearer-auth";
 import { jwt } from "hono/jwt";
 
-import { authRouter } from "./resources/auth/auth-routes.ts";
-import { userRouter } from "./resources/user/user-routes.ts";
+import { authRouter } from "./resources/auth/routes.ts";
+import { userRouter } from "./resources/user/routes.ts";
 
 const app = new Hono().basePath("/api/v1");
 app.use("*", logger(), cors(), compress());

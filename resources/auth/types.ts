@@ -1,4 +1,4 @@
-type AuthSessionSchema = {
+type AuthSessionRecord = {
     created_at: string;
     id: string;
     refresh_tokens_deny_list: string[];
@@ -6,4 +6,6 @@ type AuthSessionSchema = {
     user_id: string;
 };
 
-export type { AuthSessionSchema };
+type AuthSessionSchema = Omit<AuthSessionRecord, "id">;
+
+export type { AuthSessionRecord };

@@ -4,7 +4,7 @@ import {
     deleteUserHandler,
     getUserByIdHandler,
     updateUserHandler,
-} from "./user-handler.ts";
+} from "./handlers.ts";
 
 const userRouter = new Hono();
 

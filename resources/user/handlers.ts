@@ -1,6 +1,6 @@
 import { Context } from "hono";
-import { createUserService, getUserService } from "./user-service.ts";
-import { UserSchema } from "./user-model.ts";
+import { createUserService, getUserService } from "./services.ts";
+import { UserSchema } from "./types.ts";
 
 async function createUserHandler(c: Context) {
     const user = await c.req.json<UserSchema>();

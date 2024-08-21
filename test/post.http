@@ -1,4 +1,4 @@
-POST http://0.0.0.0:8000/kv
+POST http://0.0.0.0:8000/api/v1/auth/register
 content-type: application/json
 
 {
