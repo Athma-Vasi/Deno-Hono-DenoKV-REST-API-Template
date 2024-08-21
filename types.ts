@@ -1,8 +1,14 @@
-type HttpResult<T extends unknown = unknown> = {
+import { ErrImpl, OkImpl } from "./ts-results/result.ts";
+
+type HttpResult<Data extends unknown = unknown> = {
+    data: Array<Data>;
     kind: "error" | "success";
-    status: number;
     message: string;
-    data: Array<T>;
+    status: number;
 };
 
-export type { HttpResult };
+type ServicesOutput<Data extends unknown = unknown> = Promise<
+    ErrImpl<HttpResult> | OkImpl<HttpResult<Data>>
+>;
+
+export type { HttpResult, ServicesOutput };

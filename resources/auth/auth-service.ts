@@ -14,12 +14,8 @@ import {
     JwtTokenNotBefore,
     JwtTokenSignatureMismatched,
 } from "jsr:@hono/hono@^4.5.6/utils/jwt/types";
-import { HttpResult } from "../../types.ts";
+import { HttpResult, ServicesOutput } from "../../types.ts";
 import { AuthSessionSchema } from "./auth-types.ts";
-
-type AuthSessionServicesOutput<Data extends unknown = unknown> = Promise<
-    ErrImpl<HttpResult> | OkImpl<HttpResult<Data>>
->;
 
 /**
  * Result: Ok(true) == token IN deny list
@@ -27,7 +23,7 @@ type AuthSessionServicesOutput<Data extends unknown = unknown> = Promise<
 async function isTokenInDenyListService(
     refreshToken: string,
     sessionId: string,
-): AuthSessionServicesOutput<boolean> {
+): ServicesOutput<boolean> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
@@ -77,7 +73,7 @@ async function isTokenInDenyListService(
 
 async function createNewAuthSessionService(
     authSessionSchema: AuthSessionSchema,
-): AuthSessionServicesOutput<AuthSessionSchema> {
+): ServicesOutput<AuthSessionSchema> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
@@ -121,7 +117,7 @@ async function createNewAuthSessionService(
 
 async function deleteAuthSessionService(
     session_id: string,
-): AuthSessionServicesOutput<boolean> {
+): ServicesOutput<boolean> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
@@ -155,7 +151,7 @@ async function deleteAuthSessionService(
 async function upsertAuthSessionTokensService(
     refreshToken: string,
     sessionId: string,
-): AuthSessionServicesOutput<AuthSessionSchema> {
+): ServicesOutput<AuthSessionSchema> {
     try {
         const denoDB = await Deno.openKv("auth_session_db");
         if (denoDB === null || denoDB === undefined) {
@@ -218,7 +214,7 @@ type TokensObject = { accessToken: string; refreshToken: string };
 async function loginService(
     username: string,
     password: string,
-): AuthSessionServicesOutput<TokensObject> {
+): ServicesOutput<TokensObject> {
     try {
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
@@ -336,7 +332,7 @@ async function loginService(
 
 async function registerService(
     user: UserSchema,
-): AuthSessionServicesOutput<TokensObject> {
+): ServicesOutput<TokensObject> {
     try {
         const denoDB = await Deno.openKv("user_db");
         if (denoDB === null || denoDB === undefined) {
@@ -388,7 +384,7 @@ async function tokensRefreshService(
         sessionId: string;
         userId: string;
     },
-): AuthSessionServicesOutput<TokensObject> {
+): ServicesOutput<TokensObject> {
     try {
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
@@ -499,7 +495,7 @@ async function tokensRefreshService(
 
 async function logoutService(
     sessionId: string,
-): AuthSessionServicesOutput<boolean> {
+): ServicesOutput<boolean> {
     try {
         const result = await deleteAuthSessionService(sessionId);
         if (result.err) {
@@ -525,7 +521,7 @@ async function logoutService(
 async function verifyPayload(
     seed: string,
     token: string,
-): AuthSessionServicesOutput<boolean> {
+): ServicesOutput<boolean> {
     try {
         await verifyJWT(token, seed);
         return new Ok<HttpResult<boolean>>({
