@@ -2,6 +2,12 @@ POST http://0.0.0.0:8000/api/v1/auth/register
 content-type: application/json
 
 {
-  "key": "test",
-  "value": "http"
+    "name": "string",
+    "email": "string",
+    "password": "string",
+    "address_line": "string",
+    "city": "string",
+    "province": "string",
+    "postal_code": "string",
+    "country": "string"
 }

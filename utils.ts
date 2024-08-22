@@ -13,7 +13,7 @@ async function openDenoDBService(
         }
 
         return new Ok<HttpResult<Deno.Kv>>(
-            createHttpSuccessResult(denoDB, "Database opened", 200),
+            createHttpSuccessResult(denoDB, "Database opened"),
         );
     } catch (error) {
         return new Err<HttpResult>(
@@ -26,7 +26,7 @@ async function openDenoDBService(
 }
 
 async function openDenoDBAndSetValueService<
-    Schema extends Record<string, unknown> = Record<string, unknown>,
+    Schema extends unknown = unknown,
     Key extends string | number | boolean | Uint8Array | bigint =
         | string
         | number
@@ -67,8 +67,50 @@ async function openDenoDBAndSetValueService<
     }
 }
 
-async function openDenoDBAndGetValueService<
+async function checkIfValueExistsInDenoDB<
     Schema extends Record<string, unknown> = Record<string, unknown>,
+    Key extends string | number | boolean | Uint8Array | bigint =
+        | string
+        | number
+        | boolean
+        | Uint8Array
+        | bigint,
+>(
+    dbName: string,
+    compoundKey: Array<Key>,
+): ServicesOutput<boolean> {
+    try {
+        const denoDB = await Deno.openKv(dbName);
+        if (denoDB === null || denoDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
+        }
+
+        const result = await denoDB.get<Schema>(compoundKey);
+        denoDB.close();
+
+        return result.value === null
+            ? new Ok<HttpResult<boolean>>(
+                createHttpSuccessResult(false, "Value not found"),
+            )
+            : new Ok<HttpResult<boolean>>(
+                createHttpSuccessResult(true, "Value found"),
+            );
+    } catch (error) {
+        return new Err<HttpResult>(
+            createHttpErrorResult(
+                `Error checking if value exists: ${
+                    error?.name ?? "Unknown error"
+                }`,
+                500,
+            ),
+        );
+    }
+}
+
+async function openDenoDBAndGetValueService<
+    Schema extends unknown = unknown,
     Key extends string | number | boolean | Uint8Array | bigint =
         | string
         | number
@@ -96,7 +138,7 @@ async function openDenoDBAndGetValueService<
                 createHttpErrorResult("Value not found", 404),
             )
             : new Ok<HttpResult<Schema>>(
-                createHttpSuccessResult(record, "Value found", 200),
+                createHttpSuccessResult(record, "Value found"),
             );
     } catch (error) {
         return new Err<HttpResult>(
@@ -124,7 +166,7 @@ async function openDenoDBAndDeleteValueService(
         denoDB.close();
 
         return new Ok<HttpResult<boolean>>(
-            createHttpSuccessResult(true, "Value deleted", 200),
+            createHttpSuccessResult(true, "Value deleted"),
         );
     } catch (error) {
         return new Err<HttpResult>(createHttpErrorResult(
@@ -134,17 +176,20 @@ async function openDenoDBAndDeleteValueService(
     }
 }
 
-function updateFieldInObject({ fieldToUpdate, object, valueToUpdate }: {
-    fieldToUpdate: string;
-    object: Record<string, string>;
-    valueToUpdate: string;
-}) {
+function updateFieldInObject<
+    Schema extends Record<string, unknown> = Record<string, unknown>,
+>(
+    fieldValTuples: Array<[string, Schema[keyof Schema]]>,
+    object: Schema,
+): Schema {
     return Object.entries(object).reduce((acc, [key, val]) => {
-        if (key === fieldToUpdate) {
-            acc[key] = valueToUpdate;
-        } else {
-            acc[key] = val;
-        }
+        fieldValTuples.forEach(([field, value]) => {
+            if (key === field) {
+                acc[key] = value;
+            }
+        });
+
+        acc[key] = val;
 
         return acc;
     }, Object.create(null));
@@ -152,30 +197,35 @@ function updateFieldInObject({ fieldToUpdate, object, valueToUpdate }: {
 
 function createHttpErrorResult(
     message = "Unknown error",
-    status = 400,
-): HttpResult {
+    status = 401,
+    triggerLogout = false,
+): HttpResult<null> {
     return {
         data: [null],
         kind: "error",
         message,
         status,
+        triggerLogout,
     };
 }
 
 function createHttpSuccessResult<Data extends unknown = unknown>(
     data: Data,
-    message = "Successfull operation",
+    message = "Successful operation",
     status = 200,
+    triggerLogout = false,
 ): HttpResult<Data> {
     return {
         data: [data],
         kind: "success",
         message,
         status,
+        triggerLogout,
     };
 }
 
 export {
+    checkIfValueExistsInDenoDB,
     createHttpErrorResult,
     createHttpSuccessResult,
     openDenoDBAndDeleteValueService,

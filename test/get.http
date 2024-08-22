@@ -1,1 +1,1 @@
-GET http://0.0.0.0:8000/api/v1/user/&userId=1
+GET http://0.0.0.0:8000/api/v1/user/all

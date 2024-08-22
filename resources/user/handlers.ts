@@ -1,6 +1,24 @@
 import { Context } from "hono";
-import { createUserService, getUserService } from "./services.ts";
+import {
+    createUserService,
+    getAllUsersService,
+    getUserByIdService,
+} from "./services.ts";
 import { UserSchema } from "./types.ts";
+
+async function getAllUsersHandler(c: Context) {
+    const users = await getAllUsersService();
+    console.log(`\n`);
+    console.log("getAllUsersHandler");
+    console.log("users", users);
+    console.groupEnd();
+
+    if (users.ok) {
+        return c.json(users);
+    } else {
+        console.error(users.toString());
+    }
+}
 
 async function createUserHandler(c: Context) {
     const user = await c.req.json<UserSchema>();
@@ -24,7 +42,7 @@ async function getUserByIdHandler(c: Context) {
     console.log("inside getUserHandler");
     const userId = c.req.query("userId") ?? "";
 
-    const result = await getUserService(userId);
+    const result = await getUserByIdService(userId);
 
     console.group("getUserHandler");
     console.log(result);
@@ -48,6 +66,7 @@ async function updateUserHandler(c: Context) {
 export {
     createUserHandler,
     deleteUserHandler,
+    getAllUsersHandler,
     getUserByIdHandler,
     updateUserHandler,
 };

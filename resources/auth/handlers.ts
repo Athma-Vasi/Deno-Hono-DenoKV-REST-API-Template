@@ -13,6 +13,8 @@ async function loginUserHandler(ctx: Context) {
 // @access Public
 async function registerUserHandler(ctx: Context) {
     try {
+        console.log("Registering user");
+
         const userSchema = await ctx.req.json<UserSchema>();
         if (userSchema === null || userSchema === undefined) {
             return ctx.json<HttpResult>(createHttpErrorResult(

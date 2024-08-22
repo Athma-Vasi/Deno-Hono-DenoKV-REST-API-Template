@@ -17,6 +17,7 @@ import {
 import { HttpResult, ServicesOutput } from "../../types.ts";
 import { AuthSessionRecord } from "./types.ts";
 import {
+    checkIfValueExistsInDenoDB,
     createHttpErrorResult,
     createHttpSuccessResult,
     openDenoDBAndDeleteValueService,
@@ -52,7 +53,6 @@ async function isTokenInDenyListService(
         createHttpSuccessResult(
             authSessionRecord.refresh_tokens_deny_list.includes(refreshToken),
             "Token in deny list",
-            200,
         ),
     );
 }
@@ -107,14 +107,13 @@ async function upsertAuthSessionTokensService(
 
         return upsertResult.ok
             ? new Ok<HttpResult<AuthSessionRecord>>(
+                createHttpSuccessResult(authSession, "Session updated"),
+            )
+            : new Ok<HttpResult<AuthSessionRecord>>(
                 createHttpSuccessResult(
                     authSession,
-                    "Session updated",
-                    200,
+                    "Unable to update session",
                 ),
-            )
-            : new Err<HttpResult>(
-                createHttpErrorResult("Error upserting session", 500),
             );
     } catch (error) {
         return new Err<HttpResult>(
@@ -211,7 +210,6 @@ async function loginService(
             createHttpSuccessResult(
                 { accessToken, refreshToken },
                 "Logged in",
-                200,
             ),
         );
     } catch (error) {
@@ -228,23 +226,27 @@ async function registerUserService(
     user: UserSchema,
 ): ServicesOutput<TokensObject> {
     try {
-        const openDBResult = await openDenoDBAndGetValueService<UserSchema>(
+        console.log("registerUserService");
+        const isUserExistsResult = await checkIfValueExistsInDenoDB<UserRecord>(
             "user_db",
             ["users", user.email],
         );
-        if (openDBResult.err) {
-            return openDBResult;
+        console.log("isUserExistsResult", isUserExistsResult);
+        if (isUserExistsResult.err) {
+            return isUserExistsResult;
         }
 
-        const userResult = openDBResult.safeUnwrap();
-        const existingUser = userResult.data[0];
-        if (existingUser !== undefined || existingUser !== null) {
+        const userExists = isUserExistsResult.safeUnwrap().data[0];
+        console.log("userExists", userExists);
+        if (userExists) {
             return new Err<HttpResult>(
                 createHttpErrorResult("User already exists", 400),
             );
         }
 
         const createdUser = await createUserService(user);
+
+        console.log("createdUser", createdUser);
 
         return createdUser.ok
             ? await loginService(user.email, user.password)

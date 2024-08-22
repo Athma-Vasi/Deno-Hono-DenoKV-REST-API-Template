@@ -10,7 +10,7 @@ const authRouter = new Hono();
 
 authRouter.get("/login", loginUserHandler);
 
-authRouter.get("/register", registerUserHandler);
+authRouter.post("/register", registerUserHandler);
 
 authRouter.get("/refresh", refreshTokensHandler);
 

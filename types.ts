@@ -6,6 +6,7 @@ type HttpResult<Data extends unknown = unknown> = {
     kind: "error" | "success";
     message: string;
     status: number;
+    triggerLogout?: boolean;
 };
 
 type ServicesOutput<Data extends unknown = unknown> = Promise<
