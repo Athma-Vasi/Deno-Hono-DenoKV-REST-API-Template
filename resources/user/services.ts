@@ -96,6 +96,36 @@ async function getUserByIdService(
     }
 }
 
+async function getAllUsersService(limit = 10) {
+    try {
+        const userDB = await Deno.openKv("user_db");
+        if (userDB === null || userDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
+        }
+
+        const users = [] as UserRecord[];
+        for await (
+            const result of userDB.list({ prefix: ["users"] }, { limit })
+        ) {
+            users.push(result.value as UserRecord);
+        }
+        userDB.close();
+
+        return new Ok<HttpResult<UserRecord[]>>(
+            createHttpSuccessResult(users, "Users found", 200),
+        );
+    } catch (error) {
+        return new Err<HttpResult>(
+            createHttpErrorResult(
+                `Error getting users: ${error?.name ?? "Unknown error"}`,
+                500,
+            ),
+        );
+    }
+}
+
 async function getUserByEmailService(email: string) {
     try {
         const userDB = await Deno.openKv("user_db");
@@ -249,6 +279,7 @@ async function deleteUserService(id: string): ServicesOutput<boolean> {
 export {
     createUserService,
     deleteUserService,
+    getAllUsersService,
     getUserByEmailService,
     getUserByIdService,
     updateUserService,

@@ -4,5 +4,6 @@
   ],
   "deno.enable": true,
   "editor.inlayHints.enabled": "off",
-  "editor.defaultFormatter": "denoland.vscode-deno"
+  "editor.defaultFormatter": "denoland.vscode-deno",
+  "editor.fontLigatures": true
 }
