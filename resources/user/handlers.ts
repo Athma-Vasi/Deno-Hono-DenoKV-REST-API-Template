@@ -1,23 +1,26 @@
 import { Context } from "hono";
-import {
-    createUserService,
-    getAllUsersService,
-    getUserByIdService,
-} from "./services.ts";
-import { UserSchema } from "./types.ts";
+import { createUserService, getUserByIdService } from "./services.ts";
+import { UserRecord, UserSchema } from "./types.ts";
+import { HttpResult } from "../../types.ts";
+import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
 
-async function getAllUsersHandler(c: Context) {
-    const users = await getAllUsersService();
-    console.log(`\n`);
-    console.log("getAllUsersHandler");
-    console.log("users", users);
-    console.groupEnd();
-
-    if (users.ok) {
-        return c.json(users);
-    } else {
-        console.error(users.toString());
+async function getAllUsersIdHandler(c: Context) {
+    const userDB = await Deno.openKv("user_db");
+    if (userDB === null || userDB === undefined) {
+        return c.json<HttpResult>(
+            createHttpErrorResult("Error opening database", 500),
+        );
     }
+
+    const users = [] as unknown[];
+    for await (
+        const result of userDB.list({ prefix: ["users"] }, { limit: 10 })
+    ) {
+        users.push(result.value);
+    }
+    return c.json<HttpResult>(
+        createHttpSuccessResult(users, "Users found", 200),
+    );
 }
 
 async function createUserHandler(c: Context) {
@@ -66,7 +69,7 @@ async function updateUserHandler(c: Context) {
 export {
     createUserHandler,
     deleteUserHandler,
-    getAllUsersHandler,
+    getAllUsersIdHandler,
     getUserByIdHandler,
     updateUserHandler,
 };

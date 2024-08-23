@@ -15,15 +15,42 @@ import {
     JwtTokenSignatureMismatched,
 } from "jsr:@hono/hono@^4.5.6/utils/jwt/types";
 import { HttpResult, ServicesOutput } from "../../types.ts";
-import { AuthSessionRecord } from "./types.ts";
-import {
-    checkIfValueExistsInDenoDB,
-    createHttpErrorResult,
-    createHttpSuccessResult,
-    openDenoDBAndDeleteValueService,
-    openDenoDBAndGetValueService,
-    openDenoDBAndSetValueService,
-} from "../../utils.ts";
+import { AuthSessionRecord, TokensObject } from "./types.ts";
+import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
+
+async function getAllAuthSessionsService() {
+    try {
+        const authDB = await Deno.openKv("auth_session_db");
+        if (authDB === null || authDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
+        }
+
+        const authSessions = [] as unknown[];
+        for await (
+            const result of authDB.list({ prefix: ["auth_sessions"] }, {
+                limit: 10,
+            })
+        ) {
+            authSessions.push(result.value);
+        }
+        authDB.close();
+
+        return new Ok<HttpResult>(
+            createHttpSuccessResult(authSessions, "Auth sessions found", 200),
+        );
+    } catch (error) {
+        return new Err<HttpResult>(
+            createHttpErrorResult(
+                `Error getting auth sessions: ${
+                    error?.name ?? "Unknown error"
+                }`,
+                500,
+            ),
+        );
+    }
+}
 
 /**
  * Result: Ok(true) == token IN deny list
@@ -32,48 +59,157 @@ async function isTokenInDenyListService(
     refreshToken: string,
     sessionId: string,
 ): ServicesOutput<boolean> {
-    const openDBResult = await openDenoDBAndGetValueService<AuthSessionRecord>(
-        "auth_session_db",
-        ["auth_sessions", sessionId],
-    );
+    try {
+        const authDB = await Deno.openKv("auth_session_db");
+        if (authDB === null || authDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
+        }
 
-    if (openDBResult.err) {
-        return openDBResult;
-    }
+        const primaryKey = ["auth_sessions", sessionId];
+        const authSessionMaybe = await authDB.get<AuthSessionRecord>(
+            primaryKey,
+        );
+        const authSessionRecord = authSessionMaybe.value;
+        authDB.close();
 
-    const authSessionResult = openDBResult.safeUnwrap();
-    const authSessionRecord = authSessionResult.data?.[0];
-    if (authSessionRecord === undefined) {
+        if (authSessionRecord === null) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Session not found", 404),
+            );
+        }
+
+        const isTokenInDenyList = authSessionRecord.refresh_tokens_deny_list
+            .includes(
+                refreshToken,
+            );
+
+        return new Ok<HttpResult<boolean>>(
+            createHttpSuccessResult(
+                isTokenInDenyList,
+                `Token ${isTokenInDenyList ? "in" : "not in"} deny list`,
+            ),
+        );
+    } catch (error) {
         return new Err<HttpResult>(
-            createHttpErrorResult("Session not found", 404),
+            createHttpErrorResult(
+                `Error checking if token in deny list: ${
+                    error?.name ?? "Unknown error"
+                }`,
+                500,
+            ),
         );
     }
-
-    return new Ok<HttpResult<boolean>>(
-        createHttpSuccessResult(
-            authSessionRecord.refresh_tokens_deny_list.includes(refreshToken),
-            "Token in deny list",
-        ),
-    );
 }
 
 async function createNewAuthSessionService(
-    AuthSessionRecord: AuthSessionRecord,
-): ServicesOutput<boolean> {
-    return await openDenoDBAndSetValueService<AuthSessionRecord>(
-        "auth_session_db",
-        ["auth_sessions", AuthSessionRecord.id],
-        AuthSessionRecord,
-    );
+    userId: string,
+): ServicesOutput<string> {
+    try {
+        const authDB = await Deno.openKv("auth_session_db");
+        if (authDB === null || authDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
+        }
+
+        // secondary keys value is primary key
+        // primary keys value is record
+
+        const secondaryKey = [
+            "auth_sessions_by_user_id",
+            userId,
+        ];
+        const primaryKeyMaybe = await authDB.get<string[]>(secondaryKey);
+        const primaryKey = primaryKeyMaybe.value;
+        if (primaryKey !== null) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Auth session already exists", 400),
+            );
+        }
+
+        const authSessionRecord: AuthSessionRecord = {
+            created_at: new Date().toISOString(),
+            id: ulid(),
+            refresh_tokens_deny_list: [],
+            updated_at: new Date().toISOString(),
+            user_id: userId,
+        };
+
+        const createSessionMaybe = await authDB.set(
+            ["auth_sessions", authSessionRecord.id], // primary key
+            [authSessionRecord],
+            { expireIn: 1000 * 60 * 60 * 24 * 1 }, // 1 day
+        );
+        if (!createSessionMaybe.ok) {
+            authDB.close();
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error creating session", 500),
+            );
+        }
+
+        const secondaryKeyMaybe = await authDB.set(
+            secondaryKey,
+            [authSessionRecord.id],
+        );
+        authDB.close();
+        if (!secondaryKeyMaybe.ok) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error creating session", 500),
+            );
+        }
+
+        return new Ok<HttpResult<string>>(
+            createHttpSuccessResult(
+                authSessionRecord.id,
+                "Session created",
+                201,
+            ),
+        );
+    } catch (error) {
+        return new Err<HttpResult>(
+            createHttpErrorResult(
+                `Error creating session: ${error?.name ?? "Unknown error"}`,
+                500,
+            ),
+        );
+    }
 }
 
 async function deleteAuthSessionService(
-    session_id: string,
+    sessionId: string,
 ): ServicesOutput<boolean> {
-    return await openDenoDBAndDeleteValueService(
-        "auth_session_db",
-        ["auth_sessions", session_id],
-    );
+    try {
+        const authDB = await Deno.openKv("auth_session_db");
+        if (authDB === null || authDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
+        }
+
+        const primaryKey = ["auth_sessions", sessionId];
+        const deleteSessionMaybe = await authDB.atomic().delete(primaryKey)
+            .commit();
+        authDB.close();
+
+        if (!deleteSessionMaybe.ok) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error deleting session", 500),
+            );
+        }
+
+        return new Ok<HttpResult<boolean>>(
+            createHttpSuccessResult(true, "Session deleted", 200),
+        );
+    } catch (error) {
+        return new Err<HttpResult>(
+            createHttpErrorResult(
+                `Error deleting session: ${error?.name ?? "Unknown error"}`,
+                500,
+            ),
+        );
+    }
 }
 
 async function upsertAuthSessionTokensService(
@@ -81,40 +217,49 @@ async function upsertAuthSessionTokensService(
     sessionId: string,
 ): ServicesOutput<AuthSessionRecord> {
     try {
-        const denoDBResult = await openDenoDBAndGetValueService<
-            AuthSessionRecord
-        >(
-            "auth_session_db",
-            ["auth_sessions", sessionId],
-        );
-        if (denoDBResult.err) {
-            return denoDBResult;
+        const authDB = await Deno.openKv("auth_session_db");
+        if (authDB === null || authDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
         }
 
-        const authSessionResult = denoDBResult.safeUnwrap();
-        const authSession = authSessionResult.data[0];
-
-        authSession.refresh_tokens_deny_list.push(refreshToken);
-        authSession.updated_at = new Date().toISOString();
-
-        const upsertResult = await openDenoDBAndSetValueService<
-            AuthSessionRecord
-        >(
-            "auth_session_db",
-            ["auth_sessions", sessionId],
-            authSession,
+        const primaryKey = ["auth_sessions", sessionId];
+        const authSessionMaybe = await authDB.get<AuthSessionRecord>(
+            primaryKey,
         );
+        const authSessionRecord = authSessionMaybe.value;
 
-        return upsertResult.ok
-            ? new Ok<HttpResult<AuthSessionRecord>>(
-                createHttpSuccessResult(authSession, "Session updated"),
-            )
-            : new Ok<HttpResult<AuthSessionRecord>>(
-                createHttpSuccessResult(
-                    authSession,
-                    "Unable to update session",
-                ),
+        if (authSessionRecord === null) {
+            authDB.close();
+            return new Err<HttpResult>(
+                createHttpErrorResult("Session not found", 404),
             );
+        }
+
+        authSessionRecord.refresh_tokens_deny_list.push(refreshToken);
+        authSessionRecord.updated_at = new Date().toISOString();
+
+        const upsertMaybe = await authDB.set(
+            primaryKey,
+            authSessionRecord,
+            { expireIn: 1000 * 60 * 60 * 24 * 1 }, // 1 day
+        );
+        authDB.close();
+
+        if (!upsertMaybe.ok) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error upserting session", 500),
+            );
+        }
+
+        return new Ok<HttpResult<AuthSessionRecord>>(
+            createHttpSuccessResult(
+                authSessionRecord,
+                "Session updated",
+                200,
+            ),
+        );
     } catch (error) {
         return new Err<HttpResult>(
             createHttpErrorResult(
@@ -125,51 +270,49 @@ async function upsertAuthSessionTokensService(
     }
 }
 
-type TokensObject = { accessToken: string; refreshToken: string };
-
 async function loginService(
     email: string,
     password: string,
 ): ServicesOutput<TokensObject> {
     try {
-        const openDBResult = await openDenoDBAndGetValueService<UserRecord>(
-            "user_db",
-            ["users", email],
-        );
-        if (openDBResult.err) {
-            return openDBResult;
+        const userDB = await Deno.openKv("user_db");
+        if (userDB === null || userDB === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error opening database", 500),
+            );
         }
 
-        const userResult = openDBResult.safeUnwrap();
-        const user = userResult.data[0];
+        const secondaryKey = ["users_by_email", email];
+        const userRecordMaybe = await userDB.get<UserRecord>(secondaryKey);
+        userDB.close();
 
-        if (!verify(password, user.password)) {
+        const userRecord = userRecordMaybe.value;
+        if (userRecord === null) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("User not found", 404),
+            );
+        }
+
+        if (!verify(password, userRecord.password)) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Invalid credentials", 401),
             );
         }
 
-        const AuthSessionRecord: AuthSessionRecord = {
-            created_at: new Date().toISOString(),
-            id: ulid(),
-            refresh_tokens_deny_list: [],
-            updated_at: new Date().toISOString(),
-            user_id: user.id,
-        };
-
-        const authSessionResult = await createNewAuthSessionService(
-            AuthSessionRecord,
+        const createdAuthSession = await createNewAuthSessionService(
+            userRecord.id,
         );
-        if (authSessionResult.err) {
+        if (createdAuthSession.err) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error creating session", 500),
             );
         }
 
+        const sessionId = createdAuthSession.safeUnwrap().data[0];
         const refreshTokenPayload: JWTPayload = {
-            email: user.email,
-            user_id: user.id,
-            session_id: AuthSessionRecord.id,
+            email: userRecord.email,
+            user_id: userRecord.id,
+            session_id: sessionId,
             exp: Date.now() + (1000 * 60 * 60 * 24 * 1), // 1 day
             nbf: Date.now(),
             iat: Date.now(),
@@ -186,6 +329,14 @@ async function loginService(
             REFRESH_TOKEN_SEED,
         );
 
+        const upsertRefreshTokenMaybe = await upsertAuthSessionTokensService(
+            refreshToken,
+            sessionId,
+        );
+        if (upsertRefreshTokenMaybe.err) {
+            return upsertRefreshTokenMaybe;
+        }
+
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
             return new Err<HttpResult>(
@@ -194,13 +345,14 @@ async function loginService(
         }
 
         const accessTokenPayload: JWTPayload = {
-            email: user.email,
-            user_id: user.id,
-            session_id: AuthSessionRecord.id,
+            email: userRecord.email,
+            user_id: userRecord.id,
+            session_id: refreshTokenPayload.session_id,
             exp: Date.now() + (1000 * 60 * 15), // 15 minutes
             nbf: Date.now(),
             iat: Date.now(),
         };
+
         const accessToken = await sign(
             accessTokenPayload,
             ACCESS_TOKEN_SEED,
@@ -223,44 +375,15 @@ async function loginService(
 }
 
 async function registerUserService(
-    user: UserSchema,
+    userSchema: UserSchema,
 ): ServicesOutput<TokensObject> {
-    try {
-        console.log("registerUserService");
-        const isUserExistsResult = await checkIfValueExistsInDenoDB<UserRecord>(
-            "user_db",
-            ["users", user.email],
-        );
-        console.log("isUserExistsResult", isUserExistsResult);
-        if (isUserExistsResult.err) {
-            return isUserExistsResult;
-        }
-
-        const userExists = isUserExistsResult.safeUnwrap().data[0];
-        console.log("userExists", userExists);
-        if (userExists) {
-            return new Err<HttpResult>(
-                createHttpErrorResult("User already exists", 400),
-            );
-        }
-
-        const createdUser = await createUserService(user);
-
-        console.log("createdUser", createdUser);
-
-        return createdUser.ok
-            ? await loginService(user.email, user.password)
-            : new Err<HttpResult>(
-                createHttpErrorResult("Error registering user", 500),
-            );
-    } catch (error) {
-        return new Err<HttpResult>(
-            createHttpErrorResult(
-                `Error registering user: ${error?.name ?? "Unknown error"}`,
-                500,
-            ),
-        );
+    const createdUserResult = await createUserService(userSchema);
+    if (createdUserResult.err) {
+        return createdUserResult;
     }
+
+    const user = createdUserResult.safeUnwrap().data[0];
+    return await loginService(user.email, user.password);
 }
 
 async function tokensRefreshService(
@@ -272,22 +395,40 @@ async function tokensRefreshService(
     },
 ): ServicesOutput<TokensObject> {
     try {
-        const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
-        if (ACCESS_TOKEN_SEED === undefined) {
+        const authDB = await Deno.openKv("auth_session_db");
+        if (authDB === null || authDB === undefined) {
             return new Err<HttpResult>(
-                createHttpErrorResult("Access token seed not found", 500),
+                createHttpErrorResult("Error opening database", 500),
             );
         }
 
-        const accessTokenVerifyResult = await verifyPayload(
-            accessToken,
-            ACCESS_TOKEN_SEED,
+        const primaryKey = ["auth_sessions", sessionId];
+        const authSessionMaybe = await authDB.get<AuthSessionRecord>(
+            primaryKey,
         );
-        if (
-            accessTokenVerifyResult.err &&
-            accessTokenVerifyResult.val.status === 400
-        ) {
-            return accessTokenVerifyResult;
+        const authSessionRecord = authSessionMaybe.value;
+        authDB.close();
+
+        if (authSessionRecord === null) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Session not found", 404),
+            );
+        }
+
+        const isTokenInDenyListResult = await isTokenInDenyListService(
+            refreshToken,
+            sessionId,
+        );
+        if (isTokenInDenyListResult.err) {
+            return isTokenInDenyListResult;
+        }
+
+        const unwrappedHttpResult = isTokenInDenyListResult.safeUnwrap();
+        const isTokenInDenyList = unwrappedHttpResult.data[0];
+        if (isTokenInDenyList) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Token in deny list", 401),
+            );
         }
 
         const REFRESH_TOKEN_SEED = Deno.env.get("REFRESH_TOKEN_SEED");
@@ -306,22 +447,31 @@ async function tokensRefreshService(
             return refreshTokenVerifyResult;
         }
 
-        // if refresh token is valid
-        const isTokenPresentResult = await isTokenInDenyListService(
-            refreshToken,
-            sessionId,
+        const newRefreshTokenPayload: JWTPayload = {
+            user_id: userId,
+            session_id: sessionId,
+            exp: Date.now() + (1000 * 60 * 60 * 24 * 1), // 1 day
+            nbf: Date.now(),
+            iat: Date.now(),
+        };
+        const newRefreshToken = await sign(
+            newRefreshTokenPayload,
+            REFRESH_TOKEN_SEED,
         );
-        if (isTokenPresentResult.err) {
-            return isTokenPresentResult;
+
+        const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
+        if (ACCESS_TOKEN_SEED === undefined) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Access token seed not found", 500),
+            );
         }
 
-        // if token in denylist
-        const unwrappedHttpResult = isTokenPresentResult.safeUnwrap();
-        const isTokenInDenyList = unwrappedHttpResult.data[0];
-        if (isTokenInDenyList) {
-            return new Err<HttpResult>(
-                createHttpErrorResult("Token in deny list", 401),
-            );
+        const accessTokenVerifyResult = await verifyPayload(
+            accessToken,
+            ACCESS_TOKEN_SEED,
+        );
+        if (accessTokenVerifyResult.err) {
+            return accessTokenVerifyResult;
         }
 
         const newAccessTokenPayload: JWTPayload = {
@@ -334,18 +484,6 @@ async function tokensRefreshService(
         const newAccessToken = await sign(
             newAccessTokenPayload,
             ACCESS_TOKEN_SEED,
-        );
-
-        const newRefreshTokenPayload: JWTPayload = {
-            user_id: userId,
-            session_id: sessionId,
-            exp: Date.now() + (1000 * 60 * 60 * 24 * 1), // 1 day
-            nbf: Date.now(),
-            iat: Date.now(),
-        };
-        const newRefreshToken = await sign(
-            newRefreshTokenPayload,
-            REFRESH_TOKEN_SEED,
         );
 
         return new Ok<HttpResult<TokensObject>>(
@@ -445,6 +583,7 @@ async function verifyPayload(
 export {
     createNewAuthSessionService,
     deleteAuthSessionService,
+    getAllAuthSessionsService,
     isTokenInDenyListService,
     loginService,
     logoutService,

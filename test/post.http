@@ -2,12 +2,12 @@ POST http://0.0.0.0:8000/api/v1/auth/register
 content-type: application/json
 
 {
-    "name": "string",
-    "email": "string",
-    "password": "string",
-    "address_line": "string",
-    "city": "string",
-    "province": "string",
-    "postal_code": "string",
-    "country": "string"
+    "name": "atom",
+    "email": "atomic@email.com",
+    "password": "atomic123",
+    "address_line": "atomic street",
+    "city": "atomic city",
+    "province": "atomic province",
+    "postal_code": "atomic postal code",
+    "country": "atomic country"
 }

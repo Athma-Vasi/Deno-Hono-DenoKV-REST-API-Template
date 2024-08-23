@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import {
+    getAllAuthSessionsHandler,
     loginUserHandler,
     logoutUserHandler,
     refreshTokensHandler,
@@ -7,6 +8,8 @@ import {
 } from "./handlers.ts";
 
 const authRouter = new Hono();
+
+authRouter.get("/all", getAllAuthSessionsHandler);
 
 authRouter.get("/login", loginUserHandler);
 

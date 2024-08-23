@@ -1,14 +1,6 @@
 import { Err, Ok } from "../../ts-results/result.ts";
 import { HttpResult, ServicesOutput } from "../../types.ts";
-import {
-    checkIfValueExistsInDenoDB,
-    createHttpErrorResult,
-    createHttpSuccessResult,
-    openDenoDBAndDeleteValueService,
-    openDenoDBAndGetValueService,
-    openDenoDBAndSetValueService,
-    updateFieldInObject,
-} from "../../utils.ts";
+import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
 import { UserRecord, UserSchema } from "./types.ts";
 import { ulid } from "jsr:@std/ulid";
 
@@ -16,8 +8,8 @@ async function createUserService(
     userSchema: UserSchema,
 ): ServicesOutput<UserRecord> {
     try {
-        const denoDB = await Deno.openKv("user_db");
-        if (denoDB === null || denoDB === undefined) {
+        const userDB = await Deno.openKv("user_db");
+        if (userDB === null || userDB === undefined) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error opening database", 500),
             );
@@ -25,32 +17,32 @@ async function createUserService(
 
         const secondaryKey = ["users_by_email", userSchema.email];
 
-        const primaryKeyMaybe = await denoDB.get<string[]>(secondaryKey);
+        const primaryKeyMaybe = await userDB.get<string[]>(secondaryKey);
         if (primaryKeyMaybe.value !== null) {
-            denoDB.close();
+            userDB.close();
             return new Err<HttpResult>(
                 createHttpErrorResult("User already exists", 400),
             );
         }
 
         const userRecord: UserRecord = {
+            ...userSchema,
             id: ulid(),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            ...userSchema,
         };
 
-        const primaryKey = ["users_by_id", userRecord.id];
-        const createUserMaybe = await denoDB.set(primaryKey, [userRecord]);
+        const primaryKey = ["users", userRecord.id];
+        const createUserMaybe = await userDB.set(primaryKey, [userRecord]);
         if (!createUserMaybe.ok) {
-            denoDB.close();
+            userDB.close();
             return new Err<HttpResult>(
                 createHttpErrorResult("Error creating user", 500),
             );
         }
 
-        const secondaryKeyMaybe = await denoDB.set(secondaryKey, primaryKey);
-        denoDB.close();
+        const secondaryKeyMaybe = await userDB.set(secondaryKey, primaryKey);
+        userDB.close();
         if (!secondaryKeyMaybe.ok) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error creating user", 500),
@@ -74,16 +66,16 @@ async function getUserByIdService(
     id: string,
 ): ServicesOutput<UserRecord> {
     try {
-        const denoDB = await Deno.openKv("user_db");
-        if (denoDB === null || denoDB === undefined) {
+        const userDB = await Deno.openKv("user_db");
+        if (userDB === null || userDB === undefined) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error opening database", 500),
             );
         }
 
-        const primaryKey = ["users_by_id", id];
-        const userRecordMaybe = await denoDB.get<UserRecord>(primaryKey);
-        denoDB.close();
+        const primaryKey = ["users", id];
+        const userRecordMaybe = await userDB.get<UserRecord>(primaryKey);
+        userDB.close();
 
         if (userRecordMaybe.value === null) {
             return new Err<HttpResult>(
@@ -106,25 +98,25 @@ async function getUserByIdService(
 
 async function getUserByEmailService(email: string) {
     try {
-        const denoDB = await Deno.openKv("user_db");
-        if (denoDB === null || denoDB === undefined) {
+        const userDB = await Deno.openKv("user_db");
+        if (userDB === null || userDB === undefined) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error opening database", 500),
             );
         }
 
         const secondaryKey = ["users_by_email", email];
-        const primaryKeyMaybe = await denoDB.get<string[]>(secondaryKey);
+        const primaryKeyMaybe = await userDB.get<string[]>(secondaryKey);
         const primaryKey = primaryKeyMaybe.value;
         if (primaryKey === null) {
-            denoDB.close();
+            userDB.close();
             return new Err<HttpResult>(
                 createHttpErrorResult("User not found", 404),
             );
         }
 
-        const userRecordMaybe = await denoDB.get<UserRecord>(primaryKey);
-        denoDB.close();
+        const userRecordMaybe = await userDB.get<UserRecord>(primaryKey);
+        userDB.close();
 
         if (userRecordMaybe.value === null) {
             return new Err<HttpResult>(
@@ -153,18 +145,27 @@ async function updateUserService(
     },
 ): ServicesOutput<UserRecord> {
     try {
-        const denoDB = await Deno.openKv("user_db");
-        if (denoDB === null || denoDB === undefined) {
+        if (fieldToUpdate === "email" || fieldToUpdate === "id") {
+            return new Err<HttpResult>(
+                createHttpErrorResult(
+                    "Cannot update email or id fields",
+                    400,
+                ),
+            );
+        }
+
+        const userDB = await Deno.openKv("user_db");
+        if (userDB === null || userDB === undefined) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error opening database", 500),
             );
         }
 
-        const primaryKey = ["users_by_id", userId];
-        const userRecordMaybe = await denoDB.get<UserRecord>(primaryKey);
+        const primaryKey = ["users", userId];
+        const userRecordMaybe = await userDB.get<UserRecord>(primaryKey);
         const userRecord = userRecordMaybe.value;
         if (userRecord === null) {
-            denoDB.close();
+            userDB.close();
             return new Err<HttpResult>(
                 createHttpErrorResult("User not found", 404),
             );
@@ -176,8 +177,12 @@ async function updateUserService(
             updated_at: new Date().toISOString(),
         };
 
-        const updateMaybe = await denoDB.set(primaryKey, updatedUserRecord);
-        denoDB.close();
+        const updateMaybe = await userDB.atomic().set(
+            primaryKey,
+            updatedUserRecord,
+        ).commit();
+        userDB.close();
+
         if (!updateMaybe.ok) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error updating user", 500),
@@ -203,25 +208,30 @@ async function updateUserService(
 
 async function deleteUserService(id: string): ServicesOutput<boolean> {
     try {
-        const denoDB = await Deno.openKv("user_db");
-        if (denoDB === null || denoDB === undefined) {
+        const userDB = await Deno.openKv("user_db");
+        if (userDB === null || userDB === undefined) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Error opening database", 500),
             );
         }
 
-        const primaryKey = ["users_by_id", id];
-        const userRecordMaybe = await denoDB.get<UserRecord>(primaryKey);
+        const primaryKey = ["users", id];
+        const userRecordMaybe = await userDB.get<UserRecord>(primaryKey);
         const userRecord = userRecordMaybe.value;
         if (userRecord === null) {
-            denoDB.close();
+            userDB.close();
             return new Err<HttpResult>(
                 createHttpErrorResult("User not found", 404),
             );
         }
 
-        await denoDB.delete(primaryKey);
-        denoDB.close();
+        const deleteMaybe = await userDB.atomic().delete(primaryKey).commit();
+        userDB.close();
+        if (!deleteMaybe.ok) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Error deleting user", 500),
+            );
+        }
 
         return new Ok<HttpResult<boolean>>(
             createHttpSuccessResult(true, "User deleted", 200),
@@ -239,6 +249,7 @@ async function deleteUserService(id: string): ServicesOutput<boolean> {
 export {
     createUserService,
     deleteUserService,
+    getUserByEmailService,
     getUserByIdService,
     updateUserService,
 };

@@ -1,8 +1,23 @@
 import { Context } from "hono";
 import { HttpResult } from "../../types.ts";
 import { UserSchema } from "../user/types.ts";
-import { registerUserService } from "./services.ts";
+import { getAllAuthSessionsService, registerUserService } from "./services.ts";
 import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
+
+async function getAllAuthSessionsHandler(ctx: Context) {
+    const authSessionsResult = await getAllAuthSessionsService();
+    if (authSessionsResult.err) {
+        return ctx.json<HttpResult>(createHttpErrorResult(
+            "Error getting auth sessions",
+            500,
+        ));
+    }
+
+    const authSessions = authSessionsResult.safeUnwrap();
+    return ctx.json<HttpResult>(
+        createHttpSuccessResult(authSessions.data, "Auth sessions found", 200),
+    );
+}
 
 async function loginUserHandler(ctx: Context) {
     return ctx.text("Login");
@@ -58,6 +73,7 @@ async function logoutUserHandler(ctx: Context) {
 }
 
 export {
+    getAllAuthSessionsHandler,
     loginUserHandler,
     logoutUserHandler,
     refreshTokensHandler,

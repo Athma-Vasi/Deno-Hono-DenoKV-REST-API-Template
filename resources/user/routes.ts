@@ -2,7 +2,7 @@ import { Context, Hono } from "hono";
 import {
     createUserHandler,
     deleteUserHandler,
-    getAllUsersHandler,
+    getAllUsersIdHandler,
     getUserByIdHandler,
     updateUserHandler,
 } from "./handlers.ts";
@@ -10,7 +10,7 @@ import {
 const userRouter = new Hono();
 
 userRouter.get("/", getUserByIdHandler);
-userRouter.get("/all", getAllUsersHandler);
+userRouter.get("/all", getAllUsersIdHandler);
 // userRouter.get("/email", getUserByEmailHandler);
 
 userRouter.get("/:userId", async (c: Context) => {

@@ -1,11 +1,14 @@
-type AuthSessionRecord = {
-    created_at: string;
-    id: string;
+type AuthSessionSchema = {
     refresh_tokens_deny_list: string[];
-    updated_at: string;
     user_id: string;
 };
 
-type AuthSessionSchema = Omit<AuthSessionRecord, "id">;
+type AuthSessionRecord = AuthSessionSchema & {
+    id: string;
+    created_at: string;
+    updated_at: string;
+};
 
-export type { AuthSessionRecord };
+type TokensObject = { accessToken: string; refreshToken: string };
+
+export type { AuthSessionRecord, AuthSessionSchema, TokensObject };
