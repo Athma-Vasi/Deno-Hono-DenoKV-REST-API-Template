@@ -11,4 +11,14 @@ type AuthSessionRecord = AuthSessionSchema & {
 
 type TokensObject = { accessToken: string; refreshToken: string };
 
-export type { AuthSessionRecord, AuthSessionSchema, TokensObject };
+type ReqBodyAuthPOST = {
+    email: string;
+    password: string;
+};
+
+export type {
+    AuthSessionRecord,
+    AuthSessionSchema,
+    ReqBodyAuthPOST,
+    TokensObject,
+};

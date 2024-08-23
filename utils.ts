@@ -6,7 +6,7 @@ function createHttpErrorResult(
     triggerLogout = false,
 ): HttpResult<null> {
     return {
-        data: [null],
+        data: null,
         kind: "error",
         message,
         status,
@@ -21,7 +21,7 @@ function createHttpSuccessResult<Data extends unknown = unknown>(
     triggerLogout = false,
 ): HttpResult<Data> {
     return {
-        data: [data],
+        data: data,
         kind: "success",
         message,
         status,

@@ -270,7 +270,7 @@ async function upsertAuthSessionTokensService(
     }
 }
 
-async function loginService(
+async function loginUserService(
     email: string,
     password: string,
 ): ServicesOutput<TokensObject> {
@@ -308,7 +308,7 @@ async function loginService(
             );
         }
 
-        const sessionId = createdAuthSession.safeUnwrap().data[0];
+        const sessionId = createdAuthSession.safeUnwrap().data;
         const refreshTokenPayload: JWTPayload = {
             email: userRecord.email,
             user_id: userRecord.id,
@@ -382,8 +382,8 @@ async function registerUserService(
         return createdUserResult;
     }
 
-    const user = createdUserResult.safeUnwrap().data[0];
-    return await loginService(user.email, user.password);
+    const user = createdUserResult.safeUnwrap().data;
+    return await loginUserService(user.email, user.password);
 }
 
 async function tokensRefreshService(
@@ -415,16 +415,10 @@ async function tokensRefreshService(
             );
         }
 
-        const isTokenInDenyListResult = await isTokenInDenyListService(
-            refreshToken,
-            sessionId,
-        );
-        if (isTokenInDenyListResult.err) {
-            return isTokenInDenyListResult;
-        }
-
-        const unwrappedHttpResult = isTokenInDenyListResult.safeUnwrap();
-        const isTokenInDenyList = unwrappedHttpResult.data[0];
+        const isTokenInDenyList = authSessionRecord.refresh_tokens_deny_list
+            .includes(
+                refreshToken,
+            );
         if (isTokenInDenyList) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Token in deny list", 401),
@@ -442,23 +436,17 @@ async function tokensRefreshService(
             refreshToken,
             REFRESH_TOKEN_SEED,
         );
+        // if refresh token verification results in any error, user is unauthenticated.
         if (refreshTokenVerifyResult.err) {
+            // refresh token is added to deny list
             await upsertAuthSessionTokensService(refreshToken, sessionId);
-            return refreshTokenVerifyResult;
+            // logout triggered
+            return new Err<HttpResult>(
+                createHttpErrorResult("Invalid refresh token", 401, true),
+            );
         }
 
-        const newRefreshTokenPayload: JWTPayload = {
-            user_id: userId,
-            session_id: sessionId,
-            exp: Date.now() + (1000 * 60 * 60 * 24 * 1), // 1 day
-            nbf: Date.now(),
-            iat: Date.now(),
-        };
-        const newRefreshToken = await sign(
-            newRefreshTokenPayload,
-            REFRESH_TOKEN_SEED,
-        );
-
+        // if refresh token is valid, create new access token
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
             return new Err<HttpResult>(
@@ -470,8 +458,18 @@ async function tokensRefreshService(
             accessToken,
             ACCESS_TOKEN_SEED,
         );
-        if (accessTokenVerifyResult.err) {
-            return accessTokenVerifyResult;
+        // if access token verification results in an error
+        // and the error is not "Token expired", user is unauthenticated.
+        if (
+            accessTokenVerifyResult.err &&
+            accessTokenVerifyResult.val.message !== "Token expired"
+        ) {
+            // refresh token is added to deny list
+            await upsertAuthSessionTokensService(refreshToken, sessionId);
+            // logout triggered
+            return new Err<HttpResult>(
+                createHttpErrorResult("Invalid access token", 401, true),
+            );
         }
 
         const newAccessTokenPayload: JWTPayload = {
@@ -488,7 +486,7 @@ async function tokensRefreshService(
 
         return new Ok<HttpResult<TokensObject>>(
             createHttpSuccessResult(
-                { accessToken: newAccessToken, refreshToken: newRefreshToken },
+                { accessToken: newAccessToken, refreshToken },
                 "Tokens refreshed",
                 200,
             ),
@@ -523,49 +521,49 @@ async function verifyPayload(
     try {
         await verifyJWT(token, seed);
         return new Ok<HttpResult<boolean>>({
-            data: [true],
+            data: true,
             kind: "success",
             message: "Token verified",
             status: 200,
         });
     } catch (error) {
-        if (error instanceof JwtAlgorithmNotImplemented) {
+        if (error?.name === "JwtAlgorithmNotImplemented") {
             return new Err<HttpResult>(
                 createHttpErrorResult("Algorithm not implemented", 500),
             );
         }
 
-        if (error instanceof JwtTokenInvalid) {
+        if (error?.name === "JwtTokenInvalid") {
             return new Err<HttpResult>(
                 createHttpErrorResult("Invalid token", 400),
             );
         }
 
-        if (error instanceof JwtTokenNotBefore) {
+        if (error?.name === "JwtTokenNotBefore") {
             return new Err<HttpResult>(
                 createHttpErrorResult("Token not yet valid", 400),
             );
         }
 
-        if (error instanceof JwtTokenExpired) {
+        if (error?.name === "JwtTokenExpired") {
             return new Err<HttpResult>(
                 createHttpErrorResult("Token expired", 400),
             );
         }
 
-        if (error instanceof JwtTokenIssuedAt) {
+        if (error?.name === "JwtTokenIssuedAt") {
             return new Err<HttpResult>(
                 createHttpErrorResult("Token issued in the future", 400),
             );
         }
 
-        if (error instanceof JwtHeaderInvalid) {
+        if (error?.name === "JwtHeaderInvalid") {
             return new Err<HttpResult>(
                 createHttpErrorResult("Invalid token header", 400),
             );
         }
 
-        if (error instanceof JwtTokenSignatureMismatched) {
+        if (error?.name === "JwtTokenSignatureMismatched") {
             return new Err<HttpResult>(
                 createHttpErrorResult("Token signature mismatched", 400),
             );
@@ -585,7 +583,7 @@ export {
     deleteAuthSessionService,
     getAllAuthSessionsService,
     isTokenInDenyListService,
-    loginService,
+    loginUserService,
     logoutService,
     registerUserService,
     tokensRefreshService,

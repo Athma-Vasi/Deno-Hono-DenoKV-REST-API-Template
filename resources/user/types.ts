@@ -15,9 +15,9 @@ type UserRecord = UserSchema & {
     updated_at: string;
 };
 
-type UpdateUserReqBody = {
+type ReqBodyUserPOST = {
     fieldToUpdate: string;
     valueToUpdate: string;
 };
 
-export type { UpdateUserReqBody, UserRecord, UserSchema };
+export type { ReqBodyUserPOST, UserRecord, UserSchema };

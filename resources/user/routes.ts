@@ -9,7 +9,7 @@ import {
     getUserByIdService,
     updateUserService,
 } from "./services.ts";
-import { UpdateUserReqBody } from "./types.ts";
+import { ReqBodyUserPOST } from "./types.ts";
 
 const userRouter = new Hono();
 
@@ -61,7 +61,7 @@ userRouter.get("/email", async (context) => {
 userRouter.post("/:id", async (context) => {
     try {
         const updateUserReqBody = await context.req.json<
-            UpdateUserReqBody
+            ReqBodyUserPOST
         >();
         if (updateUserReqBody === null || updateUserReqBody === undefined) {
             return context.json<HttpResult>(
