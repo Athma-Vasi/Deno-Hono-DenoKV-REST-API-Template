@@ -11,13 +11,14 @@ import { ReqBodyAuthPOST } from "./types.ts";
 import { deleteCookie, setCookie } from "jsr:@hono/hono@^4.5.6/cookie";
 import { UserSchema } from "../user/types.ts";
 import { registerUserService } from "./services.ts";
+import { verifyJWTs } from "../../middlewares/verifyJWTs.ts";
 
 const authRouter = new Hono();
 
 // @desc   Get all auth sessions
 // @route  GET /api/v1/auth/all
 // @access Private
-// authRouter.use("/all", verifyJWTs);
+authRouter.use("/all", verifyJWTs);
 authRouter.get("/all", async (context) => {
     const authSessionsResult = await getAllAuthSessionsService();
     if (authSessionsResult.err) {
@@ -128,9 +129,9 @@ authRouter.post("/register", async (context) => {
 });
 
 // @desc   Logout user
-// @route  GET /api/v1/auth/logout
+// @route  POST /api/v1/auth/logout
 // @access Private
-authRouter.get("/logout", async (context) => {
+authRouter.post("/logout", async (context) => {
     try {
         const { sessionId } = await context.req.json<HttpRequestJSONBody>();
         const logoutUserResult = await logoutUserService(sessionId);
