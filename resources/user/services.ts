@@ -3,6 +3,7 @@ import { HttpResult, ServicesOutput } from "../../types.ts";
 import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
 import { UserRecord, UserSchema } from "./types.ts";
 import { ulid } from "jsr:@std/ulid";
+import { genSalt, hash } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 async function createUserService(
     userSchema: UserSchema,
@@ -25,15 +26,19 @@ async function createUserService(
             );
         }
 
+        const salt = await genSalt(10);
+        const hashedPassword = await hash(userSchema.password, salt);
+
         const userRecord: UserRecord = {
             ...userSchema,
+            password: hashedPassword,
             id: ulid(),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
         };
 
         const primaryKey = ["users", userRecord.id];
-        const createUserMaybe = await userDB.set(primaryKey, [userRecord]);
+        const createUserMaybe = await userDB.set(primaryKey, userRecord);
         if (!createUserMaybe.ok) {
             userDB.close();
             return new Err<HttpResult>(

@@ -1,4 +1,3 @@
-import { Context } from "hono";
 import { ErrImpl, OkImpl } from "./ts-results/result.ts";
 import { JWTPayload } from "jsr:@hono/hono@^4.5.6/utils/jwt/types";
 

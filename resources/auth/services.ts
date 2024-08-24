@@ -1,9 +1,10 @@
 import { Err, Ok } from "../../ts-results/result.ts";
 import { UserRecord, UserSchema } from "../user/types.ts";
-import { verify } from "@ts-rex/bcrypt";
+
 import { createUserService } from "../user/services.ts";
 import { sign, verify as verifyJWT } from "hono/jwt";
 import { ulid } from "jsr:@std/ulid";
+import { compare } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 import { HttpResult, JWTPayload2, ServicesOutput } from "../../types.ts";
 import { AuthSessionRecord, TokensObject } from "./types.ts";
@@ -130,7 +131,7 @@ async function createNewAuthSessionService(
 
         const createSessionMaybe = await authDB.set(
             ["auth_sessions", authSessionRecord.id], // primary key
-            [authSessionRecord],
+            authSessionRecord,
             { expireIn: 1000 * 60 * 60 * 24 * 1 }, // 1 day
         );
         if (!createSessionMaybe.ok) {
@@ -142,7 +143,7 @@ async function createNewAuthSessionService(
 
         const secondaryKeyMaybe = await authDB.set(
             secondaryKey,
-            [authSessionRecord.id],
+            authSessionRecord.id,
         );
         authDB.close();
         if (!secondaryKeyMaybe.ok) {
@@ -275,9 +276,16 @@ async function loginUserService(
         }
 
         const secondaryKey = ["users_by_email", email];
-        const userRecordMaybe = await userDB.get<UserRecord>(secondaryKey);
-        userDB.close();
+        const primaryKeyMaybe = await userDB.get<string[]>(secondaryKey);
+        const primaryKey = primaryKeyMaybe.value;
+        if (primaryKey === null) {
+            return new Err<HttpResult>(
+                createHttpErrorResult("User not found", 404),
+            );
+        }
 
+        const userRecordMaybe = await userDB.get<UserRecord>(primaryKey);
+        userDB.close();
         const userRecord = userRecordMaybe.value;
         if (userRecord === null) {
             return new Err<HttpResult>(
@@ -285,11 +293,16 @@ async function loginUserService(
             );
         }
 
-        if (!verify(password, userRecord.password)) {
+        console.log("userRecord", userRecord);
+
+        const compareResult = await compare(password, userRecord.password);
+        if (!compareResult) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Invalid credentials", 401),
             );
         }
+
+        console.log("before create new auth session");
 
         const createdAuthSession = await createNewAuthSessionService(
             userRecord.id,
@@ -315,10 +328,15 @@ async function loginUserService(
                 createHttpErrorResult("Refresh token seed not found", 500),
             );
         }
+
+        console.log("before refresh token sign");
+
         const refreshToken = await sign(
             refreshTokenPayload,
             REFRESH_TOKEN_SEED,
         );
+
+        console.log("after refresh token sign");
 
         const upsertRefreshTokenMaybe = await upsertAuthSessionTokensService(
             refreshToken,
@@ -355,6 +373,7 @@ async function loginUserService(
             ),
         );
     } catch (error) {
+        console.log("called from loginUserService");
         return new Err<HttpResult>(
             createHttpErrorResult(
                 `Error logging in: ${error?.name ?? "Unknown error"}`,
