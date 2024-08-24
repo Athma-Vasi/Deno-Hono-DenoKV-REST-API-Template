@@ -1,3 +1,5 @@
+import { HttpRequestJSONBody } from "../../types.ts";
+
 type AuthSessionSchema = {
     refresh_tokens_deny_list: string[];
     user_id: string;
@@ -11,8 +13,7 @@ type AuthSessionRecord = AuthSessionSchema & {
 
 type TokensObject = { accessToken: string; refreshToken: string };
 
-type ReqBodyAuthPOST = {
-    email: string;
+type ReqBodyAuthPOST = HttpRequestJSONBody & {
     password: string;
 };
 

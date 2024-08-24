@@ -4,17 +4,8 @@ import { verify } from "@ts-rex/bcrypt";
 import { createUserService } from "../user/services.ts";
 import { sign, verify as verifyJWT } from "hono/jwt";
 import { ulid } from "jsr:@std/ulid";
-import {
-    JwtAlgorithmNotImplemented,
-    JwtHeaderInvalid,
-    JWTPayload,
-    JwtTokenExpired,
-    JwtTokenInvalid,
-    JwtTokenIssuedAt,
-    JwtTokenNotBefore,
-    JwtTokenSignatureMismatched,
-} from "jsr:@hono/hono@^4.5.6/utils/jwt/types";
-import { HttpResult, ServicesOutput } from "../../types.ts";
+
+import { HttpResult, JWTPayload2, ServicesOutput } from "../../types.ts";
 import { AuthSessionRecord, TokensObject } from "./types.ts";
 import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
 
@@ -200,13 +191,14 @@ async function deleteAuthSessionService(
         }
 
         return new Ok<HttpResult<boolean>>(
-            createHttpSuccessResult(true, "Session deleted", 200),
+            createHttpSuccessResult(true, "Session deleted", 200, true),
         );
     } catch (error) {
         return new Err<HttpResult>(
             createHttpErrorResult(
                 `Error deleting session: ${error?.name ?? "Unknown error"}`,
                 500,
+                true,
             ),
         );
     }
@@ -309,10 +301,9 @@ async function loginUserService(
         }
 
         const sessionId = createdAuthSession.safeUnwrap().data;
-        const refreshTokenPayload: JWTPayload = {
-            email: userRecord.email,
-            user_id: userRecord.id,
-            session_id: sessionId,
+        const refreshTokenPayload: JWTPayload2 = {
+            userId: userRecord.id,
+            sessionId: sessionId,
             exp: Date.now() + (1000 * 60 * 60 * 24 * 1), // 1 day
             nbf: Date.now(),
             iat: Date.now(),
@@ -344,10 +335,9 @@ async function loginUserService(
             );
         }
 
-        const accessTokenPayload: JWTPayload = {
-            email: userRecord.email,
-            user_id: userRecord.id,
-            session_id: refreshTokenPayload.session_id,
+        const accessTokenPayload: JWTPayload2 = {
+            userId: userRecord.id,
+            sessionId: sessionId,
             exp: Date.now() + (1000 * 60 * 15), // 15 minutes
             nbf: Date.now(),
             iat: Date.now(),
@@ -398,7 +388,7 @@ async function tokensRefreshService(
         const authDB = await Deno.openKv("auth_session_db");
         if (authDB === null || authDB === undefined) {
             return new Err<HttpResult>(
-                createHttpErrorResult("Error opening database", 500),
+                createHttpErrorResult("Error opening database", 500, true),
             );
         }
 
@@ -411,7 +401,7 @@ async function tokensRefreshService(
 
         if (authSessionRecord === null) {
             return new Err<HttpResult>(
-                createHttpErrorResult("Session not found", 404),
+                createHttpErrorResult("Session not found", 404, true),
             );
         }
 
@@ -421,14 +411,18 @@ async function tokensRefreshService(
             );
         if (isTokenInDenyList) {
             return new Err<HttpResult>(
-                createHttpErrorResult("Token in deny list", 401),
+                createHttpErrorResult("Token in deny list", 401, true),
             );
         }
 
         const REFRESH_TOKEN_SEED = Deno.env.get("REFRESH_TOKEN_SEED");
         if (REFRESH_TOKEN_SEED === undefined) {
             return new Err<HttpResult>(
-                createHttpErrorResult("Refresh token seed not found", 500),
+                createHttpErrorResult(
+                    "Refresh token seed not found",
+                    500,
+                    true,
+                ),
             );
         }
 
@@ -436,8 +430,12 @@ async function tokensRefreshService(
             refreshToken,
             REFRESH_TOKEN_SEED,
         );
-        // if refresh token verification results in any error, user is unauthenticated.
-        if (refreshTokenVerifyResult.err) {
+        // if refresh token verification results in an error
+        // and the error is not "Token expired", user is unauthenticated.
+        if (
+            refreshTokenVerifyResult.err &&
+            refreshTokenVerifyResult.val.message !== "Token expired"
+        ) {
             // refresh token is added to deny list
             await upsertAuthSessionTokensService(refreshToken, sessionId);
             // logout triggered
@@ -446,11 +444,31 @@ async function tokensRefreshService(
             );
         }
 
+        // if token is expired and not in deny list, create new refresh token
+
+        let newRefreshToken = refreshToken;
+        if (
+            refreshTokenVerifyResult.err &&
+            refreshTokenVerifyResult.val.message === "Token expired"
+        ) {
+            const refreshTokenPayload: JWTPayload2 = {
+                userId,
+                sessionId,
+                exp: Date.now() + (1000 * 60 * 60 * 24 * 1), // 1 day
+                nbf: Date.now(),
+                iat: Date.now(),
+            };
+            newRefreshToken = await sign(
+                refreshTokenPayload,
+                REFRESH_TOKEN_SEED,
+            );
+        }
+
         // if refresh token is valid, create new access token
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
             return new Err<HttpResult>(
-                createHttpErrorResult("Access token seed not found", 500),
+                createHttpErrorResult("Access token seed not found", 500, true),
             );
         }
 
@@ -472,21 +490,27 @@ async function tokensRefreshService(
             );
         }
 
-        const newAccessTokenPayload: JWTPayload = {
-            user_id: userId,
-            session_id: sessionId,
-            exp: Date.now() + (1000 * 60 * 15), // 15 minutes
-            nbf: Date.now(),
-            iat: Date.now(),
-        };
-        const newAccessToken = await sign(
-            newAccessTokenPayload,
-            ACCESS_TOKEN_SEED,
-        );
+        let newAccessToken = accessToken;
+        if (
+            accessTokenVerifyResult.err &&
+            accessTokenVerifyResult.val.message === "Token expired"
+        ) {
+            const newAccessTokenPayload: JWTPayload2 = {
+                userId,
+                sessionId,
+                exp: Date.now() + (1000 * 60 * 15), // 15 minutes
+                nbf: Date.now(),
+                iat: Date.now(),
+            };
+            newAccessToken = await sign(
+                newAccessTokenPayload,
+                ACCESS_TOKEN_SEED,
+            );
+        }
 
         return new Ok<HttpResult<TokensObject>>(
             createHttpSuccessResult(
-                { accessToken: newAccessToken, refreshToken },
+                { accessToken: newAccessToken, refreshToken: newRefreshToken },
                 "Tokens refreshed",
                 200,
             ),
@@ -496,12 +520,13 @@ async function tokensRefreshService(
             createHttpErrorResult(
                 `Error refreshing tokens: ${error?.name ?? "Unknown error"}`,
                 500,
+                true,
             ),
         );
     }
 }
 
-async function logoutService(
+async function logoutUserService(
     sessionId: string,
 ): ServicesOutput<boolean> {
     const result = await deleteAuthSessionService(sessionId);
@@ -510,7 +535,7 @@ async function logoutService(
     }
 
     return new Ok<HttpResult<boolean>>(
-        createHttpSuccessResult(true, "Logged out", 200),
+        createHttpSuccessResult(true, "Logged out", 200, true),
     );
 }
 
@@ -584,7 +609,7 @@ export {
     getAllAuthSessionsService,
     isTokenInDenyListService,
     loginUserService,
-    logoutService,
+    logoutUserService,
     registerUserService,
     tokensRefreshService,
     upsertAuthSessionTokensService,

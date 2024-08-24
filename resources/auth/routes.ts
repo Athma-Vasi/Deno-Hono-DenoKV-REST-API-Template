@@ -1,18 +1,24 @@
 import { Hono } from "hono";
 
-import { getAllAuthSessionsService, loginUserService } from "./services.ts";
-import { HttpResult } from "../../types.ts";
+import {
+    getAllAuthSessionsService,
+    loginUserService,
+    logoutUserService,
+} from "./services.ts";
+import { HttpRequestJSONBody, HttpResult } from "../../types.ts";
 import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
 import { ReqBodyAuthPOST } from "./types.ts";
-import { setCookie } from "jsr:@hono/hono@^4.5.6/cookie";
+import { deleteCookie, setCookie } from "jsr:@hono/hono@^4.5.6/cookie";
 import { UserSchema } from "../user/types.ts";
 import { registerUserService } from "./services.ts";
+import { verifyJWTs } from "../../middlewares/verifyJWTs.ts";
 
 const authRouter = new Hono();
 
 // @desc   Get all auth sessions
 // @route  GET /api/v1/auth/all
 // @access Private
+authRouter.use("/all", verifyJWTs);
 authRouter.get("/all", async (context) => {
     const authSessionsResult = await getAllAuthSessionsService();
     if (authSessionsResult.err) {
@@ -59,6 +65,9 @@ authRouter.post("/login", async (context) => {
             createHttpSuccessResult(true, "User logged in", 200),
         );
     } catch (error) {
+        deleteCookie(context, "access_token");
+        deleteCookie(context, "refresh_token");
+
         return context.json<HttpResult>(
             createHttpErrorResult(
                 `Error logging in user: ${error?.name ?? "Unknown error"}`,
@@ -105,6 +114,9 @@ authRouter.post("/register", async (context) => {
             createHttpSuccessResult(true, "User registered and logged in", 201),
         );
     } catch (error) {
+        deleteCookie(context, "access_token");
+        deleteCookie(context, "refresh_token");
+
         return context.json<HttpResult>(
             createHttpErrorResult(
                 `Error registering user: ${error?.name ?? "Unknown error"}`,
@@ -114,29 +126,35 @@ authRouter.post("/register", async (context) => {
     }
 });
 
-// @desc   Refresh tokens
-// @route  GET /api/v1/auth/refresh
+// @desc   Logout user
+// @route  GET /api/v1/auth/logout
 // @access Private
-authRouter.get("/refresh", async (context) => {
+authRouter.get("/logout", async (context) => {
     try {
+        const { sessionId } = await context.req.json<HttpRequestJSONBody>();
+        const logoutUserResult = await logoutUserService(sessionId);
+        if (logoutUserResult.err) {
+            return context.json<HttpResult>(logoutUserResult.val);
+        }
+
+        deleteCookie(context, "access_token");
+        deleteCookie(context, "refresh_token");
+
+        return context.json<HttpResult>(
+            createHttpSuccessResult(true, "User logged out", 200, true),
+        );
     } catch (error) {
+        deleteCookie(context, "access_token");
+        deleteCookie(context, "refresh_token");
+
         return context.json<HttpResult>(
             createHttpErrorResult(
-                `Error refreshing tokens: ${error?.name ?? "Unknown error"}`,
+                `Error logging out user: ${error?.name ?? "Unknown error"}`,
                 500,
+                true,
             ),
         );
     }
 });
-
-// authRouter.get("/all", getAllAuthSessionsHandler);
-
-// authRouter.get("/login", loginUserHandler);
-
-// authRouter.post("/register", registerUserHandler);
-
-// authRouter.get("/refresh", refreshTokensHandler);
-
-// authRouter.get("/logout", logoutUserHandler);
 
 export { authRouter };

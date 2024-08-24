@@ -1,5 +1,6 @@
 import { Context } from "hono";
 import { ErrImpl, OkImpl } from "./ts-results/result.ts";
+import { JWTPayload } from "jsr:@hono/hono@^4.5.6/utils/jwt/types";
 
 type HttpResult<Data extends unknown = unknown> = {
     data: Data;
@@ -19,4 +20,9 @@ type HttpRequestJSONBody = {
     sessionId: string;
 };
 
-export type { HttpResult, ServicesOutput };
+type JWTPayload2 = JWTPayload & {
+    userId: string;
+    sessionId: string;
+};
+
+export type { HttpRequestJSONBody, HttpResult, JWTPayload2, ServicesOutput };
