@@ -4,6 +4,12 @@ Welcome to your new Deno project! This is a simple REST API that uses Deno,
 Hono, DenoKV, and JWT authentication. It is intended to be a starting point for
 building a more complex application.
 
+[Deno](https://www.deno.com) is a secure runtime for JavaScript and
+[TypeScript](https://www.typescriptlang.org/). [Hono](https://hono.dev/) is a
+web application framework built on Web Standards. [DenoKV](https://deno.com/kv)
+is a key-value store built to store any JavaScript value. [JWT](https://jwt.io/)
+is a standard for authentication and is used to sign and verify tokens.
+
 ## Getting Started
 
 To get started, you will need to have Deno installed on your machine. You can
