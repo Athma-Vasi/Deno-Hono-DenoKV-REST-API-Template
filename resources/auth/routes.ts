@@ -7,7 +7,7 @@ import {
 } from "./services.ts";
 import { HttpRequestJSONBody, HttpResult } from "../../types.ts";
 import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
-import { ReqBodyAuthPOST } from "./types.ts";
+import { ReqBodyAuthPOST, ReqBodyLoginPOST } from "./types.ts";
 import { deleteCookie, setCookie } from "jsr:@hono/hono@^4.5.6/cookie";
 import { UserSchema } from "../user/types.ts";
 import { registerUserService } from "./services.ts";
@@ -33,7 +33,7 @@ authRouter.get("/all", async (context) => {
 // @access Public
 authRouter.post("/login", async (context) => {
     try {
-        const reqBody = await context.req.json<ReqBodyAuthPOST>();
+        const reqBody = await context.req.json<ReqBodyLoginPOST>();
         if (reqBody === null || reqBody === undefined) {
             return context.json<HttpResult>(
                 createHttpErrorResult("Invalid login data", 400),
@@ -43,6 +43,7 @@ authRouter.post("/login", async (context) => {
         const { email, password } = reqBody;
         console.log("email", email);
         console.log("password", password);
+
         const loginResult = await loginUserService(email, password);
         if (loginResult.err) {
             return context.json<HttpResult>(loginResult.val);

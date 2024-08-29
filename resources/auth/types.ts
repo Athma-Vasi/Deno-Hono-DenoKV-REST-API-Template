@@ -17,9 +17,15 @@ type ReqBodyAuthPOST = HttpRequestJSONBody & {
     password: string;
 };
 
+type ReqBodyLoginPOST = {
+    email: string;
+    password: string;
+};
+
 export type {
     AuthSessionRecord,
     AuthSessionSchema,
     ReqBodyAuthPOST,
+    ReqBodyLoginPOST,
     TokensObject,
 };

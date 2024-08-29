@@ -268,6 +268,12 @@ async function loginUserService(
     password: string,
 ): ServicesOutput<TokensObject> {
     try {
+        if (email === "" || password === "") {
+            return new Err<HttpResult>(
+                createHttpErrorResult("Invalid login data", 400),
+            );
+        }
+
         const userDB = await Deno.openKv("user_db");
         if (userDB === null || userDB === undefined) {
             return new Err<HttpResult>(
