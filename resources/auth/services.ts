@@ -301,8 +301,8 @@ async function loginUserService(
 
         console.log("userRecord", userRecord);
 
-        const compareResult = await compare(password, userRecord.password);
-        if (!compareResult) {
+        const isPasswordCorrect = await compare(password, userRecord.password);
+        if (!isPasswordCorrect) {
             return new Err<HttpResult>(
                 createHttpErrorResult("Invalid credentials", 401),
             );
@@ -344,13 +344,13 @@ async function loginUserService(
 
         console.log("after refresh token sign");
 
-        const upsertRefreshTokenMaybe = await upsertAuthSessionTokensService(
-            refreshToken,
-            sessionId,
-        );
-        if (upsertRefreshTokenMaybe.err) {
-            return upsertRefreshTokenMaybe;
-        }
+        // const upsertRefreshTokenMaybe = await upsertAuthSessionTokensService(
+        //     refreshToken,
+        //     sessionId,
+        // );
+        // if (upsertRefreshTokenMaybe.err) {
+        //     return upsertRefreshTokenMaybe;
+        // }
 
         const ACCESS_TOKEN_SEED = Deno.env.get("ACCESS_TOKEN_SEED");
         if (ACCESS_TOKEN_SEED === undefined) {
@@ -397,8 +397,12 @@ async function registerUserService(
         return createdUserResult;
     }
 
+    console.group("registerUserService");
+    console.log("createdUserResult", createdUserResult);
+    console.groupEnd();
+
     const user = createdUserResult.safeUnwrap().data;
-    return await loginUserService(user.email, user.password);
+    return await loginUserService(user.email, userSchema.password);
 }
 
 async function tokensRefreshService(

@@ -18,7 +18,7 @@ const authRouter = new Hono();
 // @desc   Get all auth sessions
 // @route  GET /api/v1/auth/all
 // @access Private
-authRouter.use("/all", verifyJWTs);
+// authRouter.use("/all", verifyJWTs);
 authRouter.get("/all", async (context) => {
     const authSessionsResult = await getAllAuthSessionsService();
     if (authSessionsResult.err) {
@@ -92,12 +92,19 @@ authRouter.post("/register", async (context) => {
             );
         }
 
+        console.log("userSchema", userSchema);
+
         const registerResult = await registerUserService(userSchema);
         if (registerResult.err) {
             return context.json<HttpResult>(registerResult.val);
         }
 
+        console.log("registerResult", registerResult);
+
         const { accessToken, refreshToken } = registerResult.safeUnwrap().data;
+
+        console.log("accessToken", accessToken);
+        console.log("refreshToken", refreshToken);
 
         setCookie(context, "access_token", accessToken, {
             expires: new Date(Date.now() + 60 * 15 * 1000), // 15 minutes

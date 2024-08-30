@@ -12,7 +12,7 @@ app.use("*", logger(), cors(), compress());
 
 app.route("/auth", authRouter);
 
-app.use("/user/*", verifyJWTs);
+// app.use("/user/*", verifyJWTs);
 app.route("/user", userRouter);
 
 Deno.serve(app.fetch);
