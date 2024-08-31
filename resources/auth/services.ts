@@ -7,7 +7,7 @@ import { ulid } from "jsr:@std/ulid";
 import { compare } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 import { HttpResult, JWTPayload2, ServicesOutput } from "../../types.ts";
-import { AuthSessionRecord, TokensObject } from "./types.ts";
+import { AuthSessionRecord, LoginServiceData, TokensObject } from "./types.ts";
 import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
 
 async function getAllAuthSessionsService() {
@@ -266,7 +266,7 @@ async function upsertAuthSessionTokensService(
 async function loginUserService(
     email: string,
     password: string,
-): ServicesOutput<TokensObject> {
+): ServicesOutput<LoginServiceData> {
     try {
         if (email === "" || password === "") {
             return new Err<HttpResult>(
@@ -372,9 +372,9 @@ async function loginUserService(
             ACCESS_TOKEN_SEED,
         );
 
-        return new Ok<HttpResult<TokensObject>>(
+        return new Ok<HttpResult<LoginServiceData>>(
             createHttpSuccessResult(
-                { accessToken, refreshToken },
+                { user: userRecord, tokens: { accessToken, refreshToken } },
                 "Logged in",
             ),
         );
@@ -391,7 +391,7 @@ async function loginUserService(
 
 async function registerUserService(
     userSchema: UserSchema,
-): ServicesOutput<TokensObject> {
+): ServicesOutput<LoginServiceData> {
     const createdUserResult = await createUserService(userSchema);
     if (createdUserResult.err) {
         return createdUserResult;

@@ -1,4 +1,5 @@
-import { HttpRequestJSONBody } from "../../types.ts";
+import { HttpRequestJSONBody, HttpResult } from "../../types.ts";
+import { UserRecord } from "../user/types.ts";
 
 type AuthSessionSchema = {
     refresh_tokens_deny_list: string[];
@@ -12,6 +13,10 @@ type AuthSessionRecord = AuthSessionSchema & {
 };
 
 type TokensObject = { accessToken: string; refreshToken: string };
+type LoginServiceData = {
+    user: UserRecord;
+    tokens: TokensObject;
+};
 
 type ReqBodyAuthPOST = HttpRequestJSONBody & {
     password: string;
@@ -25,6 +30,7 @@ type ReqBodyLoginPOST = {
 export type {
     AuthSessionRecord,
     AuthSessionSchema,
+    LoginServiceData,
     ReqBodyAuthPOST,
     ReqBodyLoginPOST,
     TokensObject,

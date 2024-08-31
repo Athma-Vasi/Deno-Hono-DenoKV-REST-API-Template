@@ -9,7 +9,7 @@ import { HttpRequestJSONBody, HttpResult } from "../../types.ts";
 import { createHttpErrorResult, createHttpSuccessResult } from "../../utils.ts";
 import { ReqBodyAuthPOST, ReqBodyLoginPOST } from "./types.ts";
 import { deleteCookie, setCookie } from "jsr:@hono/hono@^4.5.6/cookie";
-import { UserSchema } from "../user/types.ts";
+import { UserRecord, UserSchema } from "../user/types.ts";
 import { registerUserService } from "./services.ts";
 import { verifyJWTs } from "../../middlewares/verifyJWTs.ts";
 
@@ -49,7 +49,8 @@ authRouter.post("/login", async (context) => {
             return context.json<HttpResult>(loginResult.val);
         }
 
-        const { accessToken, refreshToken } = loginResult.safeUnwrap().data;
+        const { user, tokens } = loginResult.safeUnwrap().data;
+        const { accessToken, refreshToken } = tokens;
 
         setCookie(context, "access_token", accessToken, {
             expires: new Date(Date.now() + 60 * 15 * 1000), // 15 minutes
@@ -64,8 +65,8 @@ authRouter.post("/login", async (context) => {
             sameSite: "strict",
         });
 
-        return context.json<HttpResult>(
-            createHttpSuccessResult(true, "User logged in", 200),
+        return context.json<HttpResult<UserRecord>>(
+            createHttpSuccessResult(user, "User logged in", 200),
         );
     } catch (error) {
         deleteCookie(context, "access_token");
